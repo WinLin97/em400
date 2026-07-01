@@ -298,6 +298,9 @@ void MainWindow::build_statusbar()
 
 	mono_status_labels = {ips, flags_label, flags, status_label, q, bs, nb, mc};
 
+	slot_ips_update(0);
+	update_r0_status(0);
+
 	// nudge the leftmost item (MIPS) off the window edge by the same gap the layout
 	// puts between items, so the left margin matches the counter-to-divider spacing
 	int gap = ui->statusbar->layout() ? ui->statusbar->layout()->spacing() : -1;

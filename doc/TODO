@@ -2,7 +2,9 @@ Work notes:
 
 * drop terminal "transport"
 * drop old-style config handlers
-* -O machine.mera400:memory.elwro_modules ?
+* how to handle machine parameters:
+  -O machine.mera400:memory.elwro_modules ?
+  -M memory.elwro_modules ?
 * drop e4i (auto-migrate? ui popup?)
 * config migration - UI popup?
 
