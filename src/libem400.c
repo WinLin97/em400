@@ -316,6 +316,12 @@ int em400_log_set(bool state)
 }
 
 // -----------------------------------------------------------------------
+int em400_log_reopen(const char *file, em400_log_buf_type_t buf_type)
+{
+	return log_reopen(file, buf_type);
+}
+
+// -----------------------------------------------------------------------
 bool em400_log_component_state(unsigned component)
 {
 	return log_component_get(component) ? true : false;

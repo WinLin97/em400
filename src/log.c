@@ -163,6 +163,26 @@ int log_enable()
 }
 
 // -----------------------------------------------------------------------
+int log_reopen(const char *new_file_name, em400_log_buf_type_t new_buf_type)
+{
+	if (log_file_name && !strcmp(log_file_name, new_file_name) && log_buf_type == new_buf_type) {
+		return E_OK;
+	}
+
+	char *dup = strdup(new_file_name);
+	if (!dup) return LOGERR("Log memory allocation error.");
+
+	bool was_enabled = log_is_enabled();
+	if (was_enabled) log_disable();
+
+	free(log_file_name);
+	log_file_name = dup;
+	log_buf_type = new_buf_type;
+
+	return was_enabled ? log_enable() : E_OK;
+}
+
+// -----------------------------------------------------------------------
 unsigned log_is_enabled()
 {
 	return atomic_load_explicit(&log_components_enabled, memory_order_relaxed);

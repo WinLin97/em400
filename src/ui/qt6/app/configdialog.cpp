@@ -1084,8 +1084,8 @@ QWidget *ConfigDialog::build_log_page()
 		QString f = QFileDialog::getSaveFileName(this, tr("Log file"));
 		if (!f.isNull()) file->setText(f);
 	});
-	gate(file, "cold");
-	gate(file_browse, "cold");
+	gate(file, "live");
+	gate(file_browse, "live");
 	QHBoxLayout *file_row = new QHBoxLayout();
 	file_row->addWidget(file, 1);
 	file_row->addWidget(file_browse);
@@ -1096,7 +1096,7 @@ QWidget *ConfigDialog::build_log_page()
 	connect(line_buffered, &QCheckBox::toggled, this, [this](bool on) {
 		work.log.line_buffered = on;
 	});
-	gate(line_buffered, "cold");
+	gate(line_buffered, "live");
 	config_form->addRow(QString(), line_buffered);
 
 	form->addRow(config_box);
@@ -1115,6 +1115,19 @@ void ConfigDialog::rebuild_log_components()
 		}
 	}
 	set_cstr((const char **) &work.log.components, names.join(','));
+}
+
+// -----------------------------------------------------------------------
+void ConfigDialog::apply_log_live()
+{
+	if (work.log.file && *work.log.file) {
+		em400_log_reopen(work.log.file,
+			work.log.line_buffered ? EM400_LOG_LINE_BUFFERED : EM400_LOG_FULL_BUFFERED);
+	}
+	for (QCheckBox *cb : m_log_components) {
+		em400_log_component_set(cb->property("compid").toUInt(), cb->isChecked());
+	}
+	em400_log_set(work.log.enabled);
 }
 
 // -----------------------------------------------------------------------
@@ -1215,6 +1228,7 @@ void ConfigDialog::accept_config()
 		QMessageBox::warning(this, tr("Configuration"), tr("Failed to save the configuration file."));
 		return;
 	}
+	apply_log_live();
 	emit signal_machine_renamed(); // committed active machine name may have changed
 	accept();
 }

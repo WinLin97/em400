@@ -38,6 +38,7 @@ void log_shutdown();
 
 int log_enable();
 void log_disable();
+int log_reopen(const char *file, em400_log_buf_type_t log_buf_type);
 unsigned log_is_enabled();
 
 void log_component_enable(unsigned component);

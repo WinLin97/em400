@@ -93,6 +93,7 @@ private:
 	void add_section(const QString &title, const QString &icon_name, QWidget *page);
 	void reload_machine_page();
 	void rebuild_log_components();
+	void apply_log_live();
 
 	QString chan_type_label(int type);
 	QString dev_type_label(int type);

@@ -223,6 +223,7 @@ void em400_logf(const char *func, const char *fmt, ...);
 #define em400_log(fmt, ...) em400_logf(__func__, fmt, ##__VA_ARGS__)
 bool em400_log_state();
 int em400_log_set(bool state);
+int em400_log_reopen(const char *file, em400_log_buf_type_t buf_type);
 bool em400_log_component_state(unsigned component);
 int em400_log_component_set(unsigned component, bool state);
 const char * em400_log_component_name(unsigned component);
