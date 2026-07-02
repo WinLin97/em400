@@ -42,6 +42,16 @@ static void term_buf_reset(terminal_t *terminal)
 }
 
 // -----------------------------------------------------------------------
+static bool term_buf_empty(terminal_t *terminal)
+{
+	pthread_mutex_lock(&terminal->mutex);
+	bool empty = terminal->rdbuf_count <= 0;
+	pthread_mutex_unlock(&terminal->mutex);
+
+	return empty;
+}
+
+// -----------------------------------------------------------------------
 static int term_buf_get(terminal_t *terminal)
 {
 	int data;
@@ -124,8 +134,11 @@ static void on_read_delay_timeout(uv_timer_t *handle)
 	if ((data > 0) && (terminal->controller) && (terminal->on_data_received)) {
 		terminal->on_data_received(terminal->controller, data);
 	}
-	// push next character in buffer
-	uv_timer_start(&terminal->timer_read, on_read_delay_timeout, terminal->delay_ms, 0);
+
+	if (!term_buf_empty(terminal)) {
+		// push next character in buffer
+		uv_timer_start(&terminal->timer_read, on_read_delay_timeout, terminal->delay_ms, 0);
+	}
 }
 
 // -----------------------------------------------------------------------
@@ -144,7 +157,7 @@ static void on_tcp_read(uv_stream_t *handle, ssize_t nread, const uv_buf_t *buf)
 
 	free(buf->base);
 
-	if (res >= 0) {
+	if ((res >= 0) && !uv_is_active((uv_handle_t*) &terminal->timer_read)) {
 		uv_timer_start(&terminal->timer_read, on_read_delay_timeout, terminal->delay_ms, 0);
 	}
 }
