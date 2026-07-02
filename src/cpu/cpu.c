@@ -852,17 +852,18 @@ __attribute__((hot)) static void * cpu_loop(void *ptr)
 				}
 				break;
 			case EM400_STATE_WAIT:
-				// busy wait to not disturb audio, TODO
-				cpu_reg_selected_to_w();
-				if (atomic_load_explicit(&irq, memory_order_acquire) && !p && !mc) {
-					cpu_state_change(EM400_STATE_RUN, EM400_STATE_WAIT);
+				if (speed_real) {
+					// busy wait to not disturb audio, TODO
+					cpu_reg_selected_to_w();
+					if (atomic_load_explicit(&irq, memory_order_acquire) && !p && !mc) {
+						cpu_state_change(EM400_STATE_RUN, EM400_STATE_WAIT);
+					} else {
+						cpu_time_ns = emulation_quantum_ns;
+					}
 				} else {
-					cpu_time_ns = emulation_quantum_ns;
+					cpu_do_wait();
+					cpu_state_change(EM400_STATE_RUN, EM400_STATE_WAIT);
 				}
-				// else = if (!speed_real) {
-				//	cpu_do_wait();
-				//	cpu_state_change(EM400_STATE_RUN, EM400_STATE_WAIT);
-				//}
 				break;
 		}
 
