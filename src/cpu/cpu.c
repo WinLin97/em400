@@ -300,7 +300,7 @@ int cpu_init(const struct em400_host_cfg *host, const struct em400_machine_cfg *
 	cpu_mod_present = machine->cpu.mod;
 	cpu_user_io_illegal = machine->cpu.user_io_illegal;
 	nomem_stop = machine->cpu.nomem_stop;
-	speed_real = host->emu.speed_real;
+	speed_real = host->emu.timing != EM400_TIMING_NONE;
 	emulation_quantum_ns = 1000 * host->emu.emulation_quantum_us;
 	ticks_per_2s = 2000000000L / emulation_quantum_ns;
 
@@ -333,7 +333,7 @@ int cpu_init(const struct em400_host_cfg *host, const struct em400_machine_cfg *
 
 	if (sound_enabled) {
 		if (!speed_real) {
-			LOGERR("Sound requires real CPU speed: set emu.speed_real=true or sound.enabled=false.");
+			LOGERR("Sound requires emulation timing set to \"all\" or \"minimal\"");
 			goto fail;
 		}
 		if (buzzer_init(&host->sound) != E_OK) {

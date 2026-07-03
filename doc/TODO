@@ -48,7 +48,7 @@ CPU:
 I/O:
 
 * what is the purpose of UZDAT modification? (older crooks?)
-* speed_real (disk latencies, serial lines, ...)
+* timing (disk latencies, serial lines, ...)
 * handling no memory for io devices
 * cmem
 * cchar

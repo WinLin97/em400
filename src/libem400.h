@@ -72,8 +72,14 @@ struct em400_sound_cfg {
 	const char *device;
 };
 
+enum em400_timing {
+	EM400_TIMING_NONE = 0,
+	EM400_TIMING_MINIMAL,
+	EM400_TIMING_ALL,
+};
+
 struct em400_emulation_cfg {
-	bool speed_real;
+	enum em400_timing timing;
 	int emulation_quantum_us;
 };
 

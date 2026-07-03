@@ -69,6 +69,31 @@ static bool getbool_any(em400_cfg *cfg, bool def, const char **keys)
 }
 
 // -----------------------------------------------------------------------
+static const char * timing_str(enum em400_timing t)
+{
+	switch (t) {
+	case EM400_TIMING_NONE: return "none";
+	case EM400_TIMING_MINIMAL: return "minimal";
+	default: return "all";
+	}
+}
+
+// -----------------------------------------------------------------------
+static enum em400_timing build_timing(em400_cfg *cfg)
+{
+	const char *s = cfg_getstr(cfg, "general:timing", NULL);
+	if (!s && cfg_contains(cfg, "cpu:speed_real")) {
+		return cfg_getbool(cfg, "cpu:speed_real", true) ? EM400_TIMING_ALL : EM400_TIMING_NONE;
+	}
+	if (!s) s = CFG_DEFAULT_TIMING;
+	if (!strcasecmp(s, "all")) return EM400_TIMING_ALL;
+	if (!strcasecmp(s, "minimal")) return EM400_TIMING_MINIMAL;
+	if (!strcasecmp(s, "none")) return EM400_TIMING_NONE;
+	em400_log("Unknown timing value '%s', falling back to 'all'", s);
+	return EM400_TIMING_ALL;
+}
+
+// -----------------------------------------------------------------------
 static void machine_free(struct em400_machine_cfg *machine)
 {
 	free((void *) machine->mem.mega_prom_image);
@@ -517,8 +542,7 @@ static void build_host(em400_cfg *cfg)
 {
 	appcfg.host = (struct em400_host_cfg) {
 		.emu = {
-			.speed_real = getbool_any(cfg, CFG_DEFAULT_CPU_SPEED_REAL,
-				(const char *[]){"general:speed_real", "cpu:speed_real", NULL}),
+			.timing = build_timing(cfg),
 			.emulation_quantum_us = getint_any(cfg, CFG_DEFAULT_CPU_EMULATION_QUANTUM_US,
 				(const char *[]){"general:emulation_quantum_us", "cpu:emulation_quantum_us", "cpu:throttle_granularity", NULL}),
 		},
@@ -543,8 +567,8 @@ static void build_host(em400_cfg *cfg)
 		.line_buffered = cfg_getbool(cfg, "log:line_buffered", CFG_DEFAULT_LOG_LINE_BUFFERED),
 	};
 
-	em400_log("Host config: speed_real=%s, emulation_quantum=%ius, sound=%s",
-		appcfg.host.emu.speed_real ? "true" : "false",
+	em400_log("Host config: timing=%s, emulation_quantum=%ius, sound=%s",
+		timing_str(appcfg.host.emu.timing),
 		appcfg.host.emu.emulation_quantum_us,
 		appcfg.host.sound.enabled ? "enabled" : "disabled");
 }
@@ -708,7 +732,7 @@ int appcfg_write(const struct appcfg *c, const char *path)
 	if (c->active_id) {
 		fprintf(f, "machine = %s\n", c->active_id);
 	}
-	fprintf(f, "speed_real = %s\n", bstr(c->host.emu.speed_real));
+	fprintf(f, "timing = %s\n", timing_str(c->host.emu.timing));
 	fprintf(f, "emulation_quantum_us = %i\n", c->host.emu.emulation_quantum_us);
 
 	fprintf(f, "\n[log]\n");

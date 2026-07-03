@@ -44,6 +44,8 @@
 #include <QMessageBox>
 #include <QFontDialog>
 #include <QFontInfo>
+#include <QTextDocument>
+#include <QtMath>
 
 #include "configdialog.h"
 #include "configcontroller.h"
@@ -52,6 +54,25 @@
 // -----------------------------------------------------------------------
 // strdup/free, not new/delete: appcfg_free() releases these with free().
 namespace {
+
+// QLabel's rich-text height hint doesn't match what it renders and reserves
+// phantom vertical space; take the height from the QTextDocument instead.
+class RichLabel : public QLabel {
+public:
+	using QLabel::QLabel;
+	bool hasHeightForWidth() const override { return true; }
+	int heightForWidth(int w) const override
+	{
+		QTextDocument doc;
+		doc.setDefaultFont(font());
+		if (Qt::mightBeRichText(text())) doc.setHtml(text()); else doc.setPlainText(text());
+		doc.setTextWidth(w);
+		return qCeil(doc.size().height());
+	}
+	QSize sizeHint() const override { return QSize(0, heightForWidth(width() > 0 ? width() : 400)); }
+	QSize minimumSizeHint() const override { return sizeHint(); }
+};
+
 void set_cstr(const char **field, const QString &s)
 {
 	free((void *) *field);
@@ -171,13 +192,48 @@ QWidget *ConfigDialog::build_general_page()
 	emu_form->setVerticalSpacing(10);
 	emu_form->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
 
-	QCheckBox *speed_real = new QCheckBox(tr("Emulate real CPU speed"));
-	speed_real->setChecked(work.host.emu.speed_real);
-	connect(speed_real, &QCheckBox::toggled, this, [this](bool on) {
-		work.host.emu.speed_real = on;
+	QComboBox *timing = new QComboBox();
+	timing->addItem(tr("All"), EM400_TIMING_ALL);
+	timing->addItem(tr("Minimal"), EM400_TIMING_MINIMAL);
+	timing->addItem(tr("None"), EM400_TIMING_NONE);
+	timing->setCurrentIndex(timing->findData(work.host.emu.timing));
+	gate(timing, "cold");
+	emu_form->addRow(tr("Emulated timings:"), timing);
+
+	RichLabel *desc_text = new RichLabel();
+	desc_text->setWordWrap(true);
+	desc_text->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+	// without Expanding the field column stays at the combo's narrow sizeHint and the text wraps early
+	QSizePolicy desc_sp = desc_text->sizePolicy();
+	desc_sp.setHorizontalPolicy(QSizePolicy::Expanding);
+	desc_text->setSizePolicy(desc_sp);
+	emu_form->addRow(QString(), desc_text);
+
+	auto set_timing_desc = [desc_text](enum em400_timing t) {
+		switch (t) {
+		case EM400_TIMING_NONE: {
+			QString msg = tr("WARNING: for testing and debugging purposes. May break the real software!");
+			int colon = msg.indexOf(QLatin1Char(':'));
+			QString lead = msg.left(colon + 1).toHtmlEscaped();
+			QString rest = msg.mid(colon + 1).toHtmlEscaped();
+			desc_text->setText(QStringLiteral("<span style=\"color:red\"><b>%1</b></span>%2").arg(lead, rest));
+			break;
+		}
+		case EM400_TIMING_MINIMAL:
+			desc_text->setText(tr("Only the timings required for MERA-400 software to run correctly are emulated."));
+			break;
+		default:
+			desc_text->setText(tr("Recommended. All timings the emulator supports are active, EM400 runs as close to the real MERA-400 as possible."));
+			break;
+		}
+	};
+	set_timing_desc(work.host.emu.timing);
+
+	connect(timing, &QComboBox::currentIndexChanged, this, [this, timing, set_timing_desc]() {
+		enum em400_timing t = (enum em400_timing) timing->currentData().toInt();
+		work.host.emu.timing = t;
+		set_timing_desc(t);
 	});
-	gate(speed_real, "cold");
-	emu_form->addRow(QString(), speed_real);
 
 	QSpinBox *quantum = new QSpinBox();
 	quantum->setRange(50, 900);

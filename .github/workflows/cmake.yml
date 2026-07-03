@@ -62,9 +62,9 @@ jobs:
       - name: Run tests (speed max)
         working-directory: ${{github.workspace}}/tests
         run: ./runtests.py
-      - name: Run tests (speed real)
+      - name: Run tests (timing all)
         working-directory: ${{github.workspace}}/tests
-        run: ./runtests.py -O general:speed_real=true
+        run: ./runtests.py -O general:timing=all
 
   Win64-build:
     name: Win64 build

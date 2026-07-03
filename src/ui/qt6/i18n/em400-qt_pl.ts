@@ -86,12 +86,12 @@
         <translation>Aktywna maszyna:</translation>
     </message>
     <message>
-        <source>Emulate real CPU speed</source>
-        <translation>Emuluj rzeczywistą prędkość procesora</translation>
-    </message>
-    <message>
         <source> us</source>
         <translation> us</translation>
+    </message>
+    <message>
+        <source>WARNING: for testing and debugging purposes. May break the real software!</source>
+        <translation>UWAGA: do celów testowych i debugowania. Oryginalne oprogramowanie może nie działać poprawnie!</translation>
     </message>
     <message>
         <source>Emulation quantum:</source>
@@ -168,6 +168,26 @@
     <message>
         <source>Emulation</source>
         <translation>Emulacja</translation>
+    </message>
+    <message>
+        <source>Minimal</source>
+        <translation>Minimum</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation>Żadne</translation>
+    </message>
+    <message>
+        <source>Emulated timings:</source>
+        <translation>Emulowane czasy:</translation>
+    </message>
+    <message>
+        <source>Only the timings required for MERA-400 software to run correctly are emulated.</source>
+        <translation>Emulowane są tylko czasy wymagane do poprawnego działania oprogramowania MERY-400.</translation>
+    </message>
+    <message>
+        <source>Recommended. All timings the emulator supports are active, EM400 runs as close to the real MERA-400 as possible.</source>
+        <translation>Zalecane. Aktywne są wszystkie czasy obsługiwane przez emulator, EM400 oddaje MERĘ-400 najwierniej jak potrafi.</translation>
     </message>
     <message>
         <source>User interface</source>
@@ -320,6 +340,10 @@
     <message>
         <source>Channel type:</source>
         <translation>Typ kanału:</translation>
+    </message>
+    <message>
+        <source>All</source>
+        <translation>Wszystkie</translation>
     </message>
     <message>
         <source>Command launched by Devices -&gt; Open terminal.
