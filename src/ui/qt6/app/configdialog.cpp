@@ -114,7 +114,7 @@ ConfigDialog::ConfigDialog(ConfigController *ctl, QWidget *parent) :
 	QDialog(parent),
 	ctl(ctl)
 {
-	setWindowTitle(tr("Configuration"));
+	setWindowTitle(tr("Settings"));
 
 	// edit a private deep copy; OK commits it back to appcfg, Cancel discards it
 	appcfg_copy(&work, &appcfg);
@@ -212,8 +212,8 @@ QWidget *ConfigDialog::build_general_page()
 	auto set_timing_desc = [desc_text](enum em400_timing t) {
 		switch (t) {
 		case EM400_TIMING_NONE: {
-			QString msg = tr("WARNING: for testing and debugging purposes. May break the real software!");
-			int colon = msg.indexOf(QLatin1Char(':'));
+			QString msg = tr("WARNING! For testing and debugging purposes. May break the real software.");
+			int colon = msg.indexOf(QLatin1Char('!'));
 			QString lead = msg.left(colon + 1).toHtmlEscaped();
 			QString rest = msg.mid(colon + 1).toHtmlEscaped();
 			desc_text->setText(QStringLiteral("<span style=\"color:red\"><b>%1</b></span>%2").arg(lead, rest));
@@ -431,7 +431,7 @@ QWidget *ConfigDialog::build_sound_page()
 		set_cstr(&work.host.sound.backend, backend->text());
 	});
 	gate(backend, "cold");
-	form->addRow(tr("Backend:"), backend);
+	form->addRow(tr("Audio backend:"), backend);
 
 	QLineEdit *device = new QLineEdit();
 	device->setMinimumWidth(180);
@@ -495,7 +495,7 @@ QWidget *ConfigDialog::build_machine_page()
 		if (machine) machine->cfg.cpu.mod = on;
 	});
 	cpu->addRow(QString(), m_mod);
-	m_user_io_illegal = new QCheckBox(tr("I/O illegal in user mode"));
+	m_user_io_illegal = new QCheckBox(tr("I/O instructions illegal in user mode"));
 	connect(m_user_io_illegal, &QCheckBox::toggled, this, [this](bool on) {
 		if (machine) machine->cfg.cpu.user_io_illegal = on;
 	});
@@ -604,11 +604,11 @@ QString ConfigDialog::dev_type_label(int type)
 	case EM400_DEV_TERMINAL:
 		return tr("Terminal");
 	case EM400_DEV_SP45DE:
-		return tr("SP45DE (8\" floppy)");
+		return tr("SP45DE (8\" floppies)");
 	case EM400_DEV_WINCHESTER:
 		return tr("Winchester");
 	case EM400_DEV_FLOP5:
-		return tr("Floppy (5.25\")");
+		return tr("Floppy drive (5.25\")");
 	case EM400_DEV_RTCLOCK:
 		return tr("Real-time clock");
 	default:
@@ -1281,7 +1281,7 @@ void ConfigDialog::accept_config()
 	// the file write is the commit point: on failure nothing is applied or
 	// persisted, so Cancel stays meaningful and the dialog can be retried
 	if (!ctl->apply_and_save(&work)) {
-		QMessageBox::warning(this, tr("Configuration"), tr("Failed to save the configuration file."));
+		QMessageBox::warning(this, tr("Settings"), tr("Failed to save the configuration file."));
 		return;
 	}
 	apply_log_live();

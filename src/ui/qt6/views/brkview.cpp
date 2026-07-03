@@ -46,7 +46,7 @@ BrkLed::BrkLed(unsigned bid, QWidget *parent) :
 	QWidget(parent),
 	id(bid)
 {
-	setToolTip(tr("breakpoint not hit"));
+	setToolTip(tr("Breakpoint not hit"));
 }
 
 // -----------------------------------------------------------------------
@@ -54,7 +54,7 @@ void BrkLed::set_on(bool o)
 {
 	if (on == o) return;
 	on = o;
-	setToolTip(on ? tr("breakpoint hit") : tr("breakpoint not hit"));
+	setToolTip(on ? tr("Breakpoint hit") : tr("Breakpoint not hit"));
 	update();
 }
 
@@ -155,10 +155,10 @@ BrkView::BrkView(EmuModel *emu, QWidget *parent) :
 	rl->setContentsMargins(0, 0, 0, 0);
 	rl->setSpacing(4);
 	input = new QLineEdit(row);
-	input->setPlaceholderText(tr("new breakpoint, e.g. ic == 0x40"));
+	input->setPlaceholderText(tr("New breakpoint, e.g. ic == 0x40"));
 	input->installEventFilter(this); // Esc clears the entry field
 	add_btn = new QPushButton(tr("Add"), row);
-	add_btn->setMaximumWidth(add_btn->sizeHint().width() / 2);
+	add_btn->setMaximumWidth(add_btn->sizeHint().width() * 2 / 3);
 	rl->addWidget(input, 1);
 	rl->addWidget(add_btn);
 	outer->addWidget(row);
@@ -215,7 +215,7 @@ void BrkView::add_row(const BrkInfo &info)
 	it->setData(ExprRole, info.expr);   // last committed text, for the edit diff
 	it->setData(EnabledRole, info.enabled);
 	it->setFlags(Qt::ItemIsEnabled | Qt::ItemIsEditable);
-	it->setToolTip(tr("double-click to edit"));
+	it->setToolTip(tr("Double-click to edit"));
 	table->setItem(r, COL_EXPR, it);
 	style_expr_item(it, info.enabled);
 
@@ -234,7 +234,7 @@ void BrkView::add_row(const BrkInfo &info)
 	en->setAutoRaise(true);
 	en->setFixedSize(btn_side, btn_side);
 	en->setCursor(Qt::PointingHandCursor);
-	en->setToolTip(tr("enable/disable breakpoint"));
+	en->setToolTip(tr("Enable/disable breakpoint"));
 	connect(en, &QToolButton::clicked, this, [this, it]() {
 		set_enabled(it->data(IdRole).toUInt(), it, !it->data(EnabledRole).toBool());
 	});
@@ -245,7 +245,7 @@ void BrkView::add_row(const BrkInfo &info)
 	del->setAutoRaise(true);
 	del->setFixedSize(btn_side, btn_side);
 	del->setCursor(Qt::PointingHandCursor);
-	del->setToolTip(tr("delete breakpoint"));
+	del->setToolTip(tr("Delete breakpoint"));
 	connect(del, &QToolButton::clicked, this, [this, it]() {
 		e->brk_del(it->data(IdRole).toUInt());
 		refresh();
@@ -279,7 +279,7 @@ void BrkView::slot_add()
 	QString err;
 	int id = e->brk_add(expr, err);
 	if (id < 0) {
-		show_error(err.isEmpty() ? tr("invalid expression") : err);
+		show_error(err.isEmpty() ? tr("Invalid expression") : err);
 		return;
 	}
 
@@ -317,7 +317,7 @@ void BrkView::slot_item_changed(QTableWidgetItem *item)
 
 	QString err;
 	if (e->brk_edit(item->data(IdRole).toUInt(), new_expr, err) < 0) {
-		show_error(err.isEmpty() ? tr("invalid expression") : err);
+		show_error(err.isEmpty() ? tr("Invalid expression") : err);
 		restore();
 		return;
 	}

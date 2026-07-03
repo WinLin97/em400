@@ -44,7 +44,7 @@ DasmView::DasmView(QWidget *parent) :
 	hlay->addWidget(nb_spin);
 	hlay->addSpacing(8);
 
-	QCheckBox *follow_chk = new QCheckBox(tr("follow IC"));
+	QCheckBox *follow_chk = new QCheckBox(tr("Follow IC"));
 	follow_chk->setChecked(true);
 	hlay->addWidget(follow_chk);
 	hlay->addStretch();

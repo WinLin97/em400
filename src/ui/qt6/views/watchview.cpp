@@ -94,10 +94,10 @@ WatchView::WatchView(EmuModel *emu, QWidget *parent) :
 	rl->setContentsMargins(0, 0, 0, 0);
 	rl->setSpacing(4);
 	input = new QLineEdit(row);
-	input->setPlaceholderText(tr("new watch, e.g. [r1+12]"));
+	input->setPlaceholderText(tr("New watch, e.g. [r1+12]"));
 	input->installEventFilter(this); // Esc clears the entry field
 	add_btn = new QPushButton(tr("Add"), row);
-	add_btn->setMaximumWidth(add_btn->sizeHint().width() / 2);
+	add_btn->setMaximumWidth(add_btn->sizeHint().width() * 2 / 3);
 	rl->addWidget(input, 1);
 	rl->addWidget(add_btn);
 	outer->addWidget(row);
@@ -180,7 +180,7 @@ void WatchView::add_row(const WatchInfo &info)
 	it->setData(IdRole, info.id);
 	it->setData(ExprRole, info.expr);   // last committed text, for the edit diff
 	it->setFlags(Qt::ItemIsEnabled | Qt::ItemIsEditable);
-	it->setToolTip(tr("double-click to edit"));
+	it->setToolTip(tr("Double-click to edit"));
 	// the expression is the user-authored "label" of the row; give it a medium
 	// weight so it reads apart from the derived values without the "glow" full
 	// bold lends it (at the same Text colour it otherwise looks brighter)
@@ -205,7 +205,7 @@ void WatchView::add_row(const WatchInfo &info)
 	del->setAutoRaise(true);
 	del->setFixedSize(btn_side, btn_side);
 	del->setCursor(Qt::PointingHandCursor);
-	del->setToolTip(tr("delete watch"));
+	del->setToolTip(tr("Delete watch"));
 	connect(del, &QToolButton::clicked, this, [this, it]() {
 		e->watch_del(it->data(IdRole).toUInt());
 		refresh();
@@ -237,7 +237,7 @@ void WatchView::set_value_cell(int row)
 		hex->setToolTip(QString());
 		dec->setToolTip(QString());
 	} else {
-		hex->setText(tr("err"));
+		hex->setText(tr("Err"));
 		dec->setText(QString());
 		hex->setForeground(em400_red_color(palette()));
 		hex->setToolTip(err);
@@ -263,7 +263,7 @@ void WatchView::slot_add()
 	QString err;
 	int id = e->watch_add(expr, err);
 	if (id < 0) {
-		show_error(err.isEmpty() ? tr("invalid expression") : err);
+		show_error(err.isEmpty() ? tr("Invalid expression") : err);
 		return;
 	}
 
@@ -301,7 +301,7 @@ void WatchView::slot_item_changed(QTableWidgetItem *item)
 	QString err;
 	unsigned id = item->data(IdRole).toUInt();
 	if (e->watch_edit(id, new_expr, err) < 0) {
-		show_error(err.isEmpty() ? tr("invalid expression") : err);
+		show_error(err.isEmpty() ? tr("Invalid expression") : err);
 		restore();
 		return;
 	}

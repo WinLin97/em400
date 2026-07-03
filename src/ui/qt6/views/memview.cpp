@@ -138,14 +138,14 @@ QWidget *MemView::build_search_bar()
 	slay->addWidget(search_next);
 	slay->addSpacing(8);
 
-	search_all = new QCheckBox(tr("all segments"));
+	search_all = new QCheckBox(tr("All segments"));
 	slay->addWidget(search_all);
 
 	// fixed space fo ("not found" / "wrapped") cue on the right
 	search_status = new QLabel();
 	search_status->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 	QFontMetrics sfm(search_status->fontMetrics());
-	int cue_w = qMax(sfm.horizontalAdvance(tr("not found")), sfm.horizontalAdvance(tr("wrapped")));
+	int cue_w = qMax(sfm.horizontalAdvance(tr("Not found")), sfm.horizontalAdvance(tr("Wrapped")));
 	search_status->setFixedWidth(cue_w + 4);
 	slay->addSpacing(8);
 	slay->addWidget(search_status);
@@ -251,10 +251,10 @@ void MemView::run_search(bool forward)
 	MemSearch::Mode mode = (MemSearch::Mode)search_mode->currentIndex();
 	switch (listing->search(search_entry->text(), mode, search_all->isChecked(), forward)) {
 		case MemListing::SEARCH_MISS:
-			set_search_status(tr("not found"), true);
+			set_search_status(tr("Not found"), true);
 			break;
 		case MemListing::SEARCH_WRAPPED:
-			set_search_status(tr("wrapped"), false);
+			set_search_status(tr("Wrapped"), false);
 			break;
 		case MemListing::SEARCH_FOUND:
 			set_search_status(QString(), false);

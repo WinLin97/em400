@@ -4,39 +4,39 @@
 <context>
     <name>BrkLed</name>
     <message>
-        <source>breakpoint not hit</source>
-        <translation>pułapka nietrafiona</translation>
+        <source>Breakpoint not hit</source>
+        <translation>Pułapka nietrafiona</translation>
     </message>
     <message>
-        <source>breakpoint hit</source>
-        <translation>pułapka trafiona</translation>
+        <source>Breakpoint hit</source>
+        <translation>Pułapka trafiona</translation>
     </message>
 </context>
 <context>
     <name>BrkView</name>
     <message>
-        <source>new breakpoint, e.g. ic == 0x40</source>
-        <translation>nowa pułapka, np. ic == 0x40</translation>
+        <source>New breakpoint, e.g. ic == 0x40</source>
+        <translation>Nowa pułapka, np. ic == 0x40</translation>
     </message>
     <message>
         <source>Add</source>
         <translation>Dodaj</translation>
     </message>
     <message>
-        <source>double-click to edit</source>
-        <translation>kliknij dwukrotnie aby edytować</translation>
+        <source>Double-click to edit</source>
+        <translation>Kliknij dwukrotnie aby edytować</translation>
     </message>
     <message>
-        <source>enable/disable breakpoint</source>
-        <translation>włącz/wyłącz pułapkę</translation>
+        <source>Enable/disable breakpoint</source>
+        <translation>Włącz/wyłącz pułapkę</translation>
     </message>
     <message>
-        <source>delete breakpoint</source>
-        <translation>usuń pułapkę</translation>
+        <source>Delete breakpoint</source>
+        <translation>Usuń pułapkę</translation>
     </message>
     <message>
-        <source>invalid expression</source>
-        <translation>niepoprawne wyrażenie</translation>
+        <source>Invalid expression</source>
+        <translation>Niepoprawne wyrażenie</translation>
     </message>
     <message>
         <source>Edit</source>
@@ -58,8 +58,8 @@
 <context>
     <name>ConfigDialog</name>
     <message>
-        <source>Configuration</source>
-        <translation>Konfiguracja</translation>
+        <source>Settings</source>
+        <translation>Ustawienia</translation>
     </message>
     <message>
         <source>General</source>
@@ -90,8 +90,8 @@
         <translation> us</translation>
     </message>
     <message>
-        <source>WARNING: for testing and debugging purposes. May break the real software!</source>
-        <translation>UWAGA: do celów testowych i debugowania. Oryginalne oprogramowanie może nie działać poprawnie!</translation>
+        <source>WARNING! For testing and debugging purposes. May break the real software.</source>
+        <translation>UWAGA! Do celów testowych i debugowania. Oryginalne oprogramowanie może nie działać poprawnie.</translation>
     </message>
     <message>
         <source>Emulation quantum:</source>
@@ -118,8 +118,8 @@
         <translation>Opóźnienie:</translation>
     </message>
     <message>
-        <source>Backend:</source>
-        <translation>Backend:</translation>
+        <source>Audio backend:</source>
+        <translation>Podsystem audio:</translation>
     </message>
     <message>
         <source>Device:</source>
@@ -131,7 +131,7 @@
     </message>
     <message>
         <source>CPU</source>
-        <translation>CPU</translation>
+        <translation>Procesor</translation>
     </message>
     <message>
         <source>Floating point unit (AWP)</source>
@@ -142,8 +142,8 @@
         <translation>Modyfikacje procesora</translation>
     </message>
     <message>
-        <source>I/O illegal in user mode</source>
-        <translation>We/Wy niedozwolone w trybie użytkownika</translation>
+        <source>I/O instructions illegal in user mode</source>
+        <translation>Instrukcje we/wy niedozwolone w trybie użytkownika</translation>
     </message>
     <message>
         <source>Stop on missing memory</source>
@@ -263,7 +263,7 @@
     </message>
     <message>
         <source>I/O</source>
-        <translation>We/Wy</translation>
+        <translation>Wejście/wyjście</translation>
     </message>
     <message>
         <source>Character</source>
@@ -275,7 +275,7 @@
     </message>
     <message>
         <source>I/O tester</source>
-        <translation>Tester We/Wy</translation>
+        <translation>Tester we/wy</translation>
     </message>
     <message>
         <source>(empty)</source>
@@ -286,16 +286,16 @@
         <translation>Terminal</translation>
     </message>
     <message>
-        <source>SP45DE (8&quot; floppy)</source>
-        <translation>SP45DE (dyskietki 8&quot;)</translation>
+        <source>SP45DE (8&quot; floppies)</source>
+        <translation>Pamięć SP45DE (dyskietki 8&quot;)</translation>
     </message>
     <message>
         <source>Winchester</source>
         <translation>Winchester</translation>
     </message>
     <message>
-        <source>Floppy (5.25&quot;)</source>
-        <translation>Dyskietka (5.25&quot;)</translation>
+        <source>Floppy drive (5.25&quot;)</source>
+        <translation>Napęd dyskietek (5.25&quot;)</translation>
     </message>
     <message>
         <source>Real-time clock</source>
@@ -399,7 +399,7 @@ Domyślnie używany jest dołączony pomocniczy program emterm.</translation>
     </message>
     <message>
         <source>Slot %1 image:</source>
-        <translation>Obraz slotu %1:</translation>
+        <translation>Obraz w kieszeni %1:</translation>
     </message>
     <message>
         <source>Floppy image</source>
@@ -460,75 +460,75 @@ Domyślnie używany jest dołączony pomocniczy program emterm.</translation>
         <translation>Segment pamięci</translation>
     </message>
     <message>
-        <source>follow IC</source>
-        <translation>śledź IC</translation>
+        <source>Follow IC</source>
+        <translation>Śledź IC</translation>
     </message>
 </context>
 <context>
     <name>IntView</name>
     <message>
         <source>CPU power loss</source>
-        <translation>zanik zasilania CPU</translation>
+        <translation>Zanik zasilania CPU</translation>
     </message>
     <message>
-        <source>memory parity error</source>
-        <translation>błąd parzystości pamięci</translation>
+        <source>Memory parity error</source>
+        <translation>Błąd parzystości pamięci</translation>
     </message>
     <message>
-        <source>no memory</source>
-        <translation>brak pamięci</translation>
+        <source>No memory</source>
+        <translation>Brak pamięci</translation>
     </message>
     <message>
-        <source>other CPU (high)</source>
-        <translation>z drugiego procesora (wysokie)</translation>
+        <source>Other CPU (high)</source>
+        <translation>Z drugiego procesora (wysokie)</translation>
     </message>
     <message>
-        <source>interface power loss</source>
-        <translation>zanik zasilania z interfejsu</translation>
+        <source>Interface power loss</source>
+        <translation>Zanik zasilania z interfejsu</translation>
     </message>
     <message>
-        <source>clock / special (MX-16)</source>
-        <translation>zegar / specjalne (MX-16)</translation>
+        <source>Clock / special (MX-16)</source>
+        <translation>Zegar / specjalne (MX-16)</translation>
     </message>
     <message>
-        <source>illegal instruction</source>
-        <translation>niedozwolona instrukcja</translation>
+        <source>Illegal instruction</source>
+        <translation>Niedozwolona instrukcja</translation>
     </message>
     <message>
-        <source>division overflow</source>
-        <translation>nadmiar dzielenia</translation>
+        <source>Division overflow</source>
+        <translation>Nadmiar dzielenia</translation>
     </message>
     <message>
         <source>FP underflow</source>
-        <translation>niedomiar zmiennoprzecinkowy</translation>
+        <translation>Niedomiar zmiennoprzecinkowy</translation>
     </message>
     <message>
         <source>FP overflow</source>
-        <translation>nadmiar zmiennoprzecinkowy</translation>
+        <translation>Nadmiar zmiennoprzecinkowy</translation>
     </message>
     <message>
         <source>FP error / div by zero</source>
-        <translation>błąd zmiennoprzecinkowy / dzielenie przez zero</translation>
+        <translation>Błąd zmiennoprzecinkowy / dzielenie przez zero</translation>
     </message>
     <message>
-        <source>special / clock (MX-16)</source>
-        <translation>specjalne / zegar (MX-16)</translation>
+        <source>Special / clock (MX-16)</source>
+        <translation>Specjalne / zegar (MX-16)</translation>
     </message>
     <message>
-        <source>operator request</source>
-        <translation>zgłoszenie operatora</translation>
+        <source>Operator request</source>
+        <translation>Zgłoszenie operatora</translation>
     </message>
     <message>
-        <source>other CPU (low)</source>
-        <translation>z drugiego procesora (niskie)</translation>
+        <source>Other CPU (low)</source>
+        <translation>Z drugiego procesora (niskie)</translation>
     </message>
     <message>
-        <source>software (high)</source>
-        <translation>programowe (wysokie)</translation>
+        <source>Software (high)</source>
+        <translation>Programowe (wysokie)</translation>
     </message>
     <message>
-        <source>software (low)</source>
-        <translation>programowe (niskie)</translation>
+        <source>Software (low)</source>
+        <translation>Programowe (niskie)</translation>
     </message>
     <message>
         <source>Left-click: set/clear an interrupt (RZ)
@@ -571,11 +571,11 @@ Brak ramki: przerwanie niemaskowalne</translation>
     </message>
     <message>
         <source>Load OS image...</source>
-        <translation>Wczytaj obraz OS...</translation>
+        <translation>Załaduj obraz OS...</translation>
     </message>
     <message>
-        <source>Preferences...</source>
-        <translation>Preferencje...</translation>
+        <source>Settings...</source>
+        <translation>Ustawienia...</translation>
     </message>
     <message>
         <source>Quit</source>
@@ -679,7 +679,7 @@ Brak ramki: przerwanie niemaskowalne</translation>
     </message>
     <message>
         <source>SP45DE (%1:%2) slot %3</source>
-        <translation>SP45DE (%1:%2) drzwiczki %3</translation>
+        <translation>SP45DE (%1:%2) kieszeń %3</translation>
     </message>
     <message>
         <source>(no removable media)</source>
@@ -731,8 +731,8 @@ Sprawdź ustawienie w Konfiguracja -&gt; Ogólne.</translation>
 <context>
     <name>MapView</name>
     <message>
-        <source>click to set memory view to %1:%2</source>
-        <translation>kliknij, aby ustawić podgląd pamięci na %1:%2</translation>
+        <source>Click to set memory view to %1:%2</source>
+        <translation>Kliknij, aby ustawić podgląd pamięci na %1:%2</translation>
     </message>
 </context>
 <context>
@@ -782,16 +782,16 @@ Sprawdź ustawienie w Konfiguracja -&gt; Ogólne.</translation>
         <translation>Dalej</translation>
     </message>
     <message>
-        <source>all segments</source>
-        <translation>wszystkie segmenty</translation>
+        <source>All segments</source>
+        <translation>Wszystkie segmenty</translation>
     </message>
     <message>
-        <source>not found</source>
-        <translation>nie znaleziono</translation>
+        <source>Not found</source>
+        <translation>Nie znaleziono</translation>
     </message>
     <message>
-        <source>wrapped</source>
-        <translation>zawinięto</translation>
+        <source>Wrapped</source>
+        <translation>Zawinięto</translation>
     </message>
 </context>
 <context>
@@ -816,12 +816,12 @@ Sprawdź ustawienie w Konfiguracja -&gt; Ogólne.</translation>
 <context>
     <name>StackView</name>
     <message>
-        <source>no stack (SP=0)</source>
-        <translation>brak stosu (SP=0)</translation>
+        <source>No stack (SP=0)</source>
+        <translation>Brak stosu (SP=0)</translation>
     </message>
     <message>
-        <source>stack unallocated</source>
-        <translation>stos w nieprzydzielonej pamięci</translation>
+        <source>Stack unallocated</source>
+        <translation>Stos w nieprzydzielonej pamięci</translation>
     </message>
     <message>
         <source>Copy %1</source>
@@ -831,28 +831,28 @@ Sprawdź ustawienie w Konfiguracja -&gt; Ogólne.</translation>
 <context>
     <name>WatchView</name>
     <message>
-        <source>new watch, e.g. [r1+12]</source>
-        <translation>nowy podgląd, np. [r1+12]</translation>
+        <source>New watch, e.g. [r1+12]</source>
+        <translation>Nowy podgląd, np. [r1+12]</translation>
     </message>
     <message>
         <source>Add</source>
         <translation>Dodaj</translation>
     </message>
     <message>
-        <source>double-click to edit</source>
-        <translation>kliknij dwukrotnie, aby edytować</translation>
+        <source>Double-click to edit</source>
+        <translation>Kliknij dwukrotnie, aby edytować</translation>
     </message>
     <message>
-        <source>delete watch</source>
-        <translation>usuń podgląd</translation>
+        <source>Delete watch</source>
+        <translation>Usuń podgląd</translation>
     </message>
     <message>
-        <source>err</source>
-        <translation>błąd</translation>
+        <source>Err</source>
+        <translation>Błąd</translation>
     </message>
     <message>
-        <source>invalid expression</source>
-        <translation>niepoprawne wyrażenie</translation>
+        <source>Invalid expression</source>
+        <translation>Niepoprawne wyrażenie</translation>
     </message>
     <message>
         <source>Edit</source>

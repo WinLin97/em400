@@ -99,7 +99,7 @@ void MapView::mouseMoveEvent(QMouseEvent *ev)
 	int seg, page;
 	if (hit_cell(ev->pos(), seg, page)) {
 		setCursor(Qt::PointingHandCursor);
-		setToolTip(tr("click to set memory view to %1:%2")
+		setToolTip(tr("Click to set memory view to %1:%2")
 			.arg(seg, 0, 16)
 			.arg(page * PAGE_WORDS, 4, 16, QLatin1Char('0')));
 	} else {

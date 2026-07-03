@@ -128,7 +128,7 @@ void StackView::paintEvent(QPaintEvent *)
 	// the "no meaningful stack" cases: a single centred dim line
 	if (state != OK) {
 		p.setPen(dim);
-		QString msg = (state == NO_SP) ? tr("no stack (SP=0)") : tr("stack unallocated");
+		QString msg = (state == NO_SP) ? tr("No stack (SP=0)") : tr("Stack unallocated");
 		p.drawText(rect(), Qt::AlignCenter, msg);
 		return;
 	}
