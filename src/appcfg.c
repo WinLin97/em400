@@ -60,15 +60,6 @@ static int getint_any(em400_cfg *cfg, int def, const char **keys)
 }
 
 // -----------------------------------------------------------------------
-static bool getbool_any(em400_cfg *cfg, bool def, const char **keys)
-{
-	for (int i=0 ; keys[i] ; i++) {
-		if (cfg_contains(cfg, keys[i])) return cfg_getbool(cfg, keys[i], def);
-	}
-	return def;
-}
-
-// -----------------------------------------------------------------------
 static const char * timing_str(enum em400_timing t)
 {
 	switch (t) {
@@ -82,9 +73,6 @@ static const char * timing_str(enum em400_timing t)
 static enum em400_timing build_timing(em400_cfg *cfg)
 {
 	const char *s = cfg_getstr(cfg, "general:timing", NULL);
-	if (!s && cfg_contains(cfg, "cpu:speed_real")) {
-		return cfg_getbool(cfg, "cpu:speed_real", true) ? EM400_TIMING_ALL : EM400_TIMING_NONE;
-	}
 	if (!s) s = CFG_DEFAULT_TIMING;
 	if (!strcasecmp(s, "all")) return EM400_TIMING_ALL;
 	if (!strcasecmp(s, "minimal")) return EM400_TIMING_MINIMAL;
