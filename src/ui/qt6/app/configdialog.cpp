@@ -223,7 +223,7 @@ QWidget *ConfigDialog::build_general_page()
 			desc_text->setText(tr("Only the timings required for MERA-400 software to run correctly are emulated."));
 			break;
 		default:
-			desc_text->setText(tr("Recommended. All timings the emulator supports are active, EM400 runs as close to the real MERA-400 as possible."));
+			desc_text->setText(tr("All timings the emulator supports are active. EM400 runs as close to the real MERA-400 as possible."));
 			break;
 		}
 	};

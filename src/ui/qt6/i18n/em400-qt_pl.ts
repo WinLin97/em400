@@ -186,8 +186,8 @@
         <translation>Emulowane są tylko czasy wymagane do poprawnego działania oprogramowania MERY-400.</translation>
     </message>
     <message>
-        <source>Recommended. All timings the emulator supports are active, EM400 runs as close to the real MERA-400 as possible.</source>
-        <translation>Zalecane. Aktywne są wszystkie czasy obsługiwane przez emulator, EM400 oddaje MERĘ-400 najwierniej jak potrafi.</translation>
+        <source>All timings the emulator supports are active. EM400 runs as close to the real MERA-400 as possible.</source>
+        <translation>Aktywne są wszystkie czasy obsługiwane przez emulator. EM400 oddaje MERĘ-400 najwierniej jak potrafi.</translation>
     </message>
     <message>
         <source>User interface</source>
