@@ -12,7 +12,7 @@ stack:	.res	8
 mask0:	.word	0
 maskc:	.word	IMASK_CH0_1
 maskt:	.word	IMASK_GROUP_H | IMASK_CH0_1
-tcount:	.word	-50		; we'll wait 0.5s for multix interrupt (50 x timer tick)
+tcount:	.word	-75		; real MULTIX boots in ~716 ms, wait 750 (75 timer ticks)
 
 	.org	OS_START
 
