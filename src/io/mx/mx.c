@@ -24,6 +24,7 @@
 #include <stdbool.h>
 #include <stdatomic.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "log.h"
 #include "utils/elst.h"
@@ -45,11 +46,19 @@
 // This way threads can continue, but any processing that stated just before the reset will have no effect.
 enum mx_states { MX_UNINITIALIZED, MX_INITIALIZED, MX_CONFIGURED };
 
+// MULTIX timings estimated from the firmware (running on 8085 with 6.144MHz crystal)
+
 #define MX_INIT_ROM_CHECKSUM_MS 168
 #define MX_INIT_RAM_TEST_MS 352
 #define MX_INIT_RAM_ZERO_MS 196
 #define MX_INIT_TIME_REAL_MS (MX_INIT_ROM_CHECKSUM_MS + MX_INIT_RAM_TEST_MS + MX_INIT_RAM_ZERO_MS)
 #define MX_INIT_TIME_FAKE_MS 30
+
+#define MX_SETCFG_BASE_US 1000
+#define MX_SETCFG_PHY_LINE_US 350
+#define MX_SETCFG_LOG_LINE_US 700
+#define MX_SETCFG_FLOPPY_US 20000	// ~16-25ms per controller
+#define MX_SETCFG_FAKE_US 5000
 
 struct chan_mx {
 	chan_t base;
@@ -612,6 +621,25 @@ static int mx_cmd_setcfg(chan_mx_t *multix, uint16_t addr)
 	}
 
 	ret_int = MX_IRQ_IUKON;
+
+	unsigned setcfg_delay_us;
+	if (io_timing == EM400_TIMING_ALL) {
+		// em400 allows floppy drives on arbitrary physical lines
+		unsigned floppy_drives = 0;
+		for (unsigned i=0 ; i<MX_LINE_CNT ; i++) {
+			if (multix->plines[i].type == MX_PHY_FLOPPY) floppy_drives++;
+		}
+		unsigned floppy_ctrls = (floppy_drives + 3) / 4;
+		unsigned setcfg_delay_us = MX_SETCFG_BASE_US
+			+ cur_line * MX_SETCFG_PHY_LINE_US
+			+ log_count * MX_SETCFG_LOG_LINE_US
+			+ floppy_ctrls * MX_SETCFG_FLOPPY_US;
+		LOG(L_MX, "Set-configuration delay: %u us (%i phy, %i log, %u floppy)", setcfg_delay_us, cur_line, log_count, floppy_ctrls);
+	} else {
+		setcfg_delay_us = MX_SETCFG_FAKE_US;
+		LOG(L_MX, "Set-configuration fake delay: %u us", setcfg_delay_us);
+	}
+	usleep(setcfg_delay_us);
 
 	atomic_store_explicit(&multix->state, MX_CONFIGURED, memory_order_relaxed);
 	LOG(L_MX, "Multix configuration is now ready");
