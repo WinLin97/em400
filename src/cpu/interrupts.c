@@ -110,8 +110,9 @@ void int_update_xmask()
 	pthread_mutex_lock(&int_mutex);
 	int_xmask = tmp_xmask;
 	atomic_store_explicit(&irq, rz & int_xmask, memory_order_relaxed);
-	cpu_wake_up_nlock();
 	pthread_mutex_unlock(&int_mutex);
+	// no cpu_wake_up() here: called either from a running CPU thread
+	// or from cpu_reg_load()/cpu_do_load() which holds cpu_wake_mutex and signals itself
 }
 
 // -----------------------------------------------------------------------
@@ -122,8 +123,8 @@ void int_set(int int_num)
 	pthread_mutex_lock(&int_mutex);
 	rz |= INT_BIT(int_num);
 	atomic_store_explicit(&irq, rz & int_xmask, memory_order_relaxed);
-	cpu_wake_up_nlock();
 	pthread_mutex_unlock(&int_mutex);
+	cpu_wake_up();
 }
 
 // -----------------------------------------------------------------------
@@ -132,8 +133,8 @@ void int_clear_all()
 	pthread_mutex_lock(&int_mutex);
 	rz = 0;
 	atomic_store_explicit(&irq, rz & int_xmask, memory_order_relaxed);
-	cpu_wake_up_nlock();
 	pthread_mutex_unlock(&int_mutex);
+	cpu_wake_up();
 }
 
 // -----------------------------------------------------------------------
@@ -144,8 +145,8 @@ void int_clear(int int_num)
 	pthread_mutex_lock(&int_mutex);
 	rz &= ~INT_BIT(int_num);
 	atomic_store_explicit(&irq, rz & int_xmask, memory_order_relaxed);
-	cpu_wake_up_nlock();
 	pthread_mutex_unlock(&int_mutex);
+	cpu_wake_up();
 }
 
 // -----------------------------------------------------------------------
@@ -174,8 +175,8 @@ void int_put_nchan(uint16_t r)
 	pthread_mutex_lock(&int_mutex);
 	rz = (rz & RZ_CHAN_BITMASK) | ((r & R_NCHAN_HIGH_BITMASK) << 16) | (r & R_NCHAN_LOW_BITMASK);
 	atomic_store_explicit(&irq, rz & int_xmask, memory_order_relaxed);
-	cpu_wake_up_nlock();
 	pthread_mutex_unlock(&int_mutex);
+	// no cpu_wake_up(): reason same as for int_update_xmask()
 }
 
 // -----------------------------------------------------------------------
@@ -205,6 +206,10 @@ void int_serve()
 	// find highest interrupt to serve
 	unsigned interrupt = 31;
 	uint32_t rp = rz & int_xmask;
+	if (!rp) { // cleared/masked between the lock-free irq peek and here
+		pthread_mutex_unlock(&int_mutex);
+		return;
+	}
 	while (rp >>= 1) interrupt--;
 	// clear interrupt; irq gets updated int context switch, together with interrupt mask
 	rz &= ~INT_BIT(interrupt);

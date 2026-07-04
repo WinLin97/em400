@@ -91,7 +91,7 @@ void cpu_shutdown();
 void cpu_mod_on();
 void cpu_mod_off();
 
-void cpu_wake_up_nlock();
+void cpu_wake_up();
 int cpu_state_change(unsigned to, unsigned from);
 unsigned cpu_state_get();
 

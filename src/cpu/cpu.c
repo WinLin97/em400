@@ -132,7 +132,7 @@ void cpu_reg_load(unsigned reg_id, uint16_t val)
 	pthread_mutex_lock(&cpu_wake_mutex);
 	if (cpu_state_get() == EM400_STATE_STOP) {
 		cpu_do_load(reg_id, val);
-		cpu_wake_up_nlock();
+		pthread_cond_signal(&cpu_wake_cond);
 	}
 	pthread_mutex_unlock(&cpu_wake_mutex);
 }
@@ -208,9 +208,11 @@ static int cpu_do_wait()
 }
 
 // -----------------------------------------------------------------------
-void cpu_wake_up_nlock()
+void cpu_wake_up()
 {
+	pthread_mutex_lock(&cpu_wake_mutex);
 	pthread_cond_signal(&cpu_wake_cond);
+	pthread_mutex_unlock(&cpu_wake_mutex);
 }
 
 // -----------------------------------------------------------------------
