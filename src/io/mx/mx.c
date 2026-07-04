@@ -45,12 +45,11 @@
 // This way threads can continue, but any processing that stated just before the reset will have no effect.
 enum mx_states { MX_UNINITIALIZED, MX_INITIALIZED, MX_CONFIGURED };
 
-// Real multix boots up in probably just under a second
-// (~500ms for ROM/RAM check + ~185ms for RAM cleanup).
-// Here we need just a reasonable delay - big enough for
-// OS scheduler to switch threads between MULTIX and CPU,
-// so we don't finish MULTIX' job before switching back to CPU thread.
-#define MX_INIT_TIME_MSEC 150
+#define MX_INIT_ROM_CHECKSUM_MS 168
+#define MX_INIT_RAM_TEST_MS 352
+#define MX_INIT_RAM_ZERO_MS 196
+#define MX_INIT_TIME_REAL_MS (MX_INIT_ROM_CHECKSUM_MS + MX_INIT_RAM_TEST_MS + MX_INIT_RAM_ZERO_MS)
+#define MX_INIT_TIME_FAKE_MS 30
 
 struct chan_mx {
 	chan_t base;
@@ -786,7 +785,7 @@ static void log_event(const char *text, struct mx_event *ev)
 bool mx_init_dummy(chan_mx_t *multix)
 {
 	bool quit = false;
-	int timeout = MX_INIT_TIME_MSEC;
+	int timeout = (io_timing == EM400_TIMING_ALL) ? MX_INIT_TIME_REAL_MS : MX_INIT_TIME_FAKE_MS;
 
 	LOG(L_MX, "Initialization delay: %i ms", timeout);
 

@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include "log.h"
+#include "io/io.h"
 #include "terminal.h"
 
 extern uv_loop_t *ioloop;
@@ -423,7 +424,7 @@ em400_dev_t * terminal_create(unsigned port, unsigned speed)
 	terminal->client = NULL;
 	terminal->port = port;
 	// milisecond accuracy due to libuv limitations, 8 bits + start + stop
-	terminal->delay_ms = roundf((float) ((8+2) * 1000) / speed);
+	terminal->delay_ms = (io_timing == EM400_TIMING_NONE) ? 0 : roundf((float) ((8+2) * 1000) / speed);
 
 	if (terminal_ioloop_setup(terminal) == E_ERR) {
 		// may happen that setup did not initialize any handler

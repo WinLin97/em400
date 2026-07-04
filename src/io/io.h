@@ -21,9 +21,13 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
+#include "libem400.h"
 #include "io/dev/dev.h"
 
-int io_init();
+// set once by io_init(), constant while powered
+extern enum em400_timing io_timing;
+
+int io_init(enum em400_timing timing);
 int io_run();
 void io_shutdown();
 void io_reset();

@@ -37,6 +37,7 @@
 #include "log.h"
 
 bool io_started;
+enum em400_timing io_timing;
 uv_loop_t *ioloop;
 pthread_t ioloop_thread;
 uv_async_t ioloop_async_quit;
@@ -69,13 +70,15 @@ static void * io_ioloop(void *ptr)
 }
 
 // -----------------------------------------------------------------------
-int io_init()
+int io_init(enum em400_timing timing)
 {
 	LOG(L_IO, "I/O Init");
 
 	if (ioloop) {
 		return LOGERR("I/O already initialized");
 	}
+
+	io_timing = timing;
 
 	ioloop = uv_default_loop();
 	if (!ioloop) {

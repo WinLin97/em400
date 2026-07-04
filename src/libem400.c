@@ -163,7 +163,7 @@ int em400_init(const struct em400_machine_cfg *machine, const struct em400_host_
 		LOG(L_LIB, "Failed to initialize CPU.");
 		return E_ERR;
 	}
-	if (io_init() != E_OK) {
+	if (io_init(host->emu.timing) != E_OK) {
 		LOG(L_LIB, "Failed to initialize I/O.");
 		return E_ERR;
 	}

@@ -26,6 +26,7 @@ Work notes:
 
 Known issues:
 
+* tests vs multix interrupt reported too fast
 
 Cleanups:
 
