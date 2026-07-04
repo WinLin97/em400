@@ -192,12 +192,28 @@ static void cpu_do_store()
 }
 
 // -----------------------------------------------------------------------
+static inline bool cpu_irq_ready(void)
+{
+	return int_pending() && !p && !mc;
+}
+
+// -----------------------------------------------------------------------
+static inline bool cpu_should_idle(void)
+{
+	switch (cpu_state_get()) {
+		case EM400_STATE_STOP: return true;
+		case EM400_STATE_WAIT: return !cpu_irq_ready();
+		default: return false;
+	}
+}
+
+// -----------------------------------------------------------------------
 static int cpu_do_wait()
 {
 	LOG(L_CPU, "CPU idling");
 
 	pthread_mutex_lock(&cpu_wake_mutex);
-	while ((cpu_state_get() == EM400_STATE_STOP) || ((cpu_state_get() == EM400_STATE_WAIT) && !(atomic_load_explicit(&irq, memory_order_acquire) && !p && !mc))) {
+	while (cpu_should_idle()) {
 		cpu_reg_selected_to_w();
 		pthread_cond_wait(&cpu_wake_cond, &cpu_wake_mutex);
 	}
@@ -808,7 +824,7 @@ __attribute__((hot)) static void * cpu_loop(void *ptr)
 				cpu_state_change(EM400_STATE_STOP, EM400_STATE_ANY);
 				// fallthrough
 			case EM400_STATE_RUN:
-				if (atomic_load_explicit(&irq, memory_order_acquire) && !p && (mc == 0)) {
+				if (cpu_irq_ready()) {
 					int_serve();
 					cpu_time_ns = TIME_INT_SERVE;
 				} else {
@@ -857,7 +873,7 @@ __attribute__((hot)) static void * cpu_loop(void *ptr)
 				if (speed_real) {
 					// busy wait to not disturb audio, TODO
 					cpu_reg_selected_to_w();
-					if (atomic_load_explicit(&irq, memory_order_acquire) && !p && !mc) {
+					if (cpu_irq_ready()) {
 						cpu_state_change(EM400_STATE_RUN, EM400_STATE_WAIT);
 					} else {
 						cpu_time_ns = emulation_quantum_ns;

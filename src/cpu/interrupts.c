@@ -16,7 +16,6 @@
 //  51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include <inttypes.h>
-#include <pthread.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 
@@ -28,13 +27,12 @@
 #include "log.h"
 
 
-uint32_t rz;
-// IRQ is atomic because cpu thread needs quick, frequent access
-// order relaxed, cpu sychronizes with IO on rz
-atomic_bool irq;
-static uint32_t int_xmask;
-
-pthread_mutex_t int_mutex = PTHREAD_MUTEX_INITIALIZER;
+// rz (interrupt requests) and int_xmask (RM-derived enable mask) are lock-free:
+// I/O threads set bits, CPU/host clear them, all via atomic RMW. int_pending()
+// (rz & int_xmask) is the single source of truth for "interrupt waiting" - no
+// cached flag to keep in sync.
+static atomic_uint_least32_t rz;
+static atomic_uint_least32_t int_xmask;
 
 #define INT_BIT(x) (1UL << (31 - x))
 
@@ -107,12 +105,16 @@ void int_update_xmask()
 		}
 	}
 
-	pthread_mutex_lock(&int_mutex);
-	int_xmask = tmp_xmask;
-	atomic_store_explicit(&irq, rz & int_xmask, memory_order_relaxed);
-	pthread_mutex_unlock(&int_mutex);
+	atomic_store_explicit(&int_xmask, tmp_xmask, memory_order_release);
 	// no cpu_wake_up() here: called either from a running CPU thread
 	// or from cpu_reg_load()/cpu_do_load() which holds cpu_wake_mutex and signals itself
+}
+
+// -----------------------------------------------------------------------
+bool int_pending()
+{
+	return (atomic_load_explicit(&rz, memory_order_acquire)
+		& atomic_load_explicit(&int_xmask, memory_order_acquire)) != 0;
 }
 
 // -----------------------------------------------------------------------
@@ -120,20 +122,14 @@ void int_set(int int_num)
 {
 	LOG(L_INT, "Set interrupt: %i (%s)", int_num, int_names[int_num]);
 
-	pthread_mutex_lock(&int_mutex);
-	rz |= INT_BIT(int_num);
-	atomic_store_explicit(&irq, rz & int_xmask, memory_order_relaxed);
-	pthread_mutex_unlock(&int_mutex);
+	atomic_fetch_or_explicit(&rz, INT_BIT(int_num), memory_order_acq_rel);
 	cpu_wake_up();
 }
 
 // -----------------------------------------------------------------------
 void int_clear_all()
 {
-	pthread_mutex_lock(&int_mutex);
-	rz = 0;
-	atomic_store_explicit(&irq, rz & int_xmask, memory_order_relaxed);
-	pthread_mutex_unlock(&int_mutex);
+	atomic_store_explicit(&rz, 0, memory_order_release);
 	cpu_wake_up();
 }
 
@@ -142,10 +138,7 @@ void int_clear(int int_num)
 {
 	LOG(L_INT, "Clear interrupt: %i (%s)", int_num, int_names[int_num]);
 
-	pthread_mutex_lock(&int_mutex);
-	rz &= ~INT_BIT(int_num);
-	atomic_store_explicit(&irq, rz & int_xmask, memory_order_relaxed);
-	pthread_mutex_unlock(&int_mutex);
+	atomic_fetch_and_explicit(&rz, ~INT_BIT(int_num), memory_order_acq_rel);
 	cpu_wake_up();
 }
 
@@ -172,48 +165,44 @@ void int_put_nchan(uint16_t r)
 {
 	LOG(L_INT, "Set non-channel interrupts to: %d", r);
 
-	pthread_mutex_lock(&int_mutex);
-	rz = (rz & RZ_CHAN_BITMASK) | ((r & R_NCHAN_HIGH_BITMASK) << 16) | (r & R_NCHAN_LOW_BITMASK);
-	atomic_store_explicit(&irq, rz & int_xmask, memory_order_relaxed);
-	pthread_mutex_unlock(&int_mutex);
+	uint32_t nchan = ((uint32_t)(r & R_NCHAN_HIGH_BITMASK) << 16) | (r & R_NCHAN_LOW_BITMASK);
+	uint32_t old = atomic_load_explicit(&rz, memory_order_relaxed);
+	while (!atomic_compare_exchange_weak_explicit(&rz, &old,
+			(old & RZ_CHAN_BITMASK) | nchan,
+			memory_order_acq_rel, memory_order_relaxed));
 	// no cpu_wake_up(): reason same as for int_update_xmask()
+}
+
+// -----------------------------------------------------------------------
+uint32_t int_get_rz()
+{
+	return atomic_load_explicit(&rz, memory_order_acquire);
 }
 
 // -----------------------------------------------------------------------
 uint16_t int_get_nchan()
 {
-	pthread_mutex_lock(&int_mutex);
-	uint32_t rz_tmp = rz;
-	pthread_mutex_unlock(&int_mutex);
-
+	uint32_t rz_tmp = atomic_load_explicit(&rz, memory_order_acquire);
 	return ((rz_tmp & RZ_NCHAN_HIGH_BITMASK) >> 16) | (rz_tmp & RZ_NCHAN_LOW_BITMASK);
 }
 
 // -----------------------------------------------------------------------
 uint16_t int_get_chan()
 {
-	pthread_mutex_lock(&int_mutex);
-	uint32_t rz_tmp = rz;
-	pthread_mutex_unlock(&int_mutex);
-
+	uint32_t rz_tmp = atomic_load_explicit(&rz, memory_order_acquire);
 	return (rz_tmp >> 4) & 0xffff;
 }
 
 // -----------------------------------------------------------------------
 void int_serve()
 {
-	pthread_mutex_lock(&int_mutex);
 	// find highest interrupt to serve
 	unsigned interrupt = 31;
-	uint32_t rp = rz & int_xmask;
-	if (!rp) { // cleared/masked between the lock-free irq peek and here
-		pthread_mutex_unlock(&int_mutex);
-		return;
-	}
+	uint32_t rp = atomic_load_explicit(&rz, memory_order_acquire)
+		& atomic_load_explicit(&int_xmask, memory_order_acquire);
+	if (!rp) return; // withdrawn/masked since the lock-free peek that got us here
 	while (rp >>= 1) interrupt--;
-	// clear interrupt; irq gets updated int context switch, together with interrupt mask
-	rz &= ~INT_BIT(interrupt);
-	pthread_mutex_unlock(&int_mutex);
+	atomic_fetch_and_explicit(&rz, ~INT_BIT(interrupt), memory_order_acq_rel);
 
 	// get interrupt vector
 	uint16_t int_vec;

@@ -215,7 +215,7 @@ static int eval_est_eval_rz_bit(struct eval_est * n)
 		return __esterr(n, "Wrong interrupt: %i", n->val);
 	}
 
-	return (rz >> (31 - n->val)) & 1;
+	return (int_get_rz() >> (31 - n->val)) & 1;
 }
 
 // -----------------------------------------------------------------------

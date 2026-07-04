@@ -19,15 +19,11 @@
 #define INTERRUPTS_H
 
 #include <inttypes.h>
-#include <pthread.h>
-#include <stdatomic.h>
+
 
 #define INT_VECTORS 0x40
 #define EXL_VECTOR 0x60
 #define STACK_POINTER 0x61
-
-extern uint32_t rz;
-extern atomic_bool irq;
 
 enum named_interrupts {
 	INT_2CPU_POWER		= 0,
@@ -79,11 +75,13 @@ enum int_masks {
 };
 
 void int_update_xmask();
+bool int_pending();
 void int_set(int int_num);
 void int_clear(int int_num);
 void int_clear_all();
 void int_put_nchan(uint16_t r);
 uint16_t int_get_nchan();
+uint32_t int_get_rz();
 int int_get_mask_bit(unsigned int_num);
 uint16_t int_get_chan();
 void int_serve();
