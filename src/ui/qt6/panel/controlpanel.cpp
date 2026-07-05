@@ -149,7 +149,6 @@ ControlPanel::ControlPanel(QWidget *parent):
 	}
 	ignition = new Ignition(gfx, ignition_sounds_r, ignition_sounds_l, this);
 
-	connect(ignition, &Ignition::signal_power, led[LED_ON], &LED::slot_change);
 	connect(ignition, &Ignition::signal_locked, this, &ControlPanel::slot_set_locked);
 
 	// Route the control switches out through the panel's own named signals so
@@ -269,6 +268,12 @@ void ControlPanel::slot_state_changed(int state)
 			dim(false);
 			break;
 	}
+}
+
+// -----------------------------------------------------------------------
+void ControlPanel::slot_set_powered(bool state)
+{
+	led[LED_ON]->set(state);
 }
 
 // -----------------------------------------------------------------------

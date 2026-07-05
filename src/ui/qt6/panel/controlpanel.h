@@ -55,6 +55,7 @@ public:
 public slots:
 	void slot_state_changed(int state);
 	void slot_small_panel_changed(bool state);
+	void slot_set_powered(bool state);
 	void slot_set_alarm(bool state);
 	void slot_set_p(bool state);
 	void slot_set_clock(bool state);

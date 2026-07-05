@@ -106,11 +106,11 @@ MainWindow::MainWindow(QWidget *parent) :
 // -----------------------------------------------------------------------
 void MainWindow::startup_power_on(const char *program)
 {
-	ui->cp->ignition->set_position(1);
-	emit ui->cp->ignition->signal_power(true);
+	ui->cp->ignition->force_on();
 
-	// a failed init pops the error dialog; signal_power_on_failed -> force_off
-	// has already snapped the key back to OFF, so just stop here.
+	// force_on emits signal_power synchronously (same-thread direct connection),
+	// so slot_power has already run em400_init by here. A failed init popped the
+	// error dialog and snap_off snapped the key back to OFF - nothing more to do.
 	if (!e.is_powered()) {
 		return;
 	}
@@ -224,6 +224,7 @@ void MainWindow::wire_connections()
 	connect(&e, &EmuModel::signal_alarm_changed, ui->cp, &ControlPanel::slot_set_alarm);
 	connect(&e, &EmuModel::signal_p_changed, ui->cp, &ControlPanel::slot_set_p);
 	connect(&e, &EmuModel::signal_clock_changed, ui->cp, &ControlPanel::slot_set_clock);
+	connect(&e, &EmuModel::signal_power_changed, ui->cp, &ControlPanel::slot_set_powered);
 
 	// ControlPanel -> EmuModel
 	// the ignition's power signal drives the machine lifecycle (the lock signal
@@ -231,7 +232,7 @@ void MainWindow::wire_connections()
 	connect(ui->cp->ignition, &Ignition::signal_power, &e, &EmuModel::slot_power);
 	connect(&e, &EmuModel::signal_power_changed, this, &MainWindow::update_window_title);
 	connect(&e, &EmuModel::signal_power_changed, this, &MainWindow::update_docks_enabled);
-	connect(&e, &EmuModel::signal_power_on_failed, ui->cp->ignition, &Ignition::force_off);
+	connect(&e, &EmuModel::signal_power_on_failed, ui->cp->ignition, &Ignition::snap_off);
 	connect(ui->cp, &ControlPanel::signal_start_toggled, &e, &EmuModel::slot_cpu_start);
 	connect(ui->cp, &ControlPanel::signal_clear_clicked, &e, &EmuModel::slot_clear);
 	connect(ui->cp, &ControlPanel::signal_oprq_clicked,  &e, &EmuModel::slot_oprq);

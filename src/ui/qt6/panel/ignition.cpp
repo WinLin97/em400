@@ -49,21 +49,31 @@ void Ignition::power_on()
 }
 
 // -----------------------------------------------------------------------
-// Set the key graphic without sound or signal - used at startup to match the
-// initial machine power state (e.g. booted powered-on via start_powered_on).
-void Ignition::set_position(int pos)
+// Startup power-on: drive the key to ON and emit, skipping the drag/timer
+// path. Silent - startup restores an already-on machine, not a key turn.
+void Ignition::force_on()
 {
-	position = pos;
+	power_on_timer.stop();
+	position = 1;
+	update();
+	emit signal_power(true);
+}
+
+// -----------------------------------------------------------------------
+// Key springs back to OFF (graphic + sound) but emits no power signal: used
+// when a power-on failed, so it must not re-drive the power-off lifecycle.
+void Ignition::snap_off()
+{
+	snd_l[0].play();
+	power_on_timer.stop();
+	position = 0;
 	update();
 }
 
 // -----------------------------------------------------------------------
 void Ignition::force_off()
 {
-	snd_l[0].play();
-	power_on_timer.stop();
-	position = 0;
-	update();
+	snap_off();
 	emit signal_power(false);
 }
 
