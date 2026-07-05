@@ -25,6 +25,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
+#include <stdbool.h>
+#include <assert.h>
+#include <pthread.h>
 
 #include "libem400.h"
 #include "ui/ui.h"
@@ -33,6 +36,10 @@ extern struct ui_drv ui_cmd;
 extern struct ui_drv ui_qt6;
 
 static struct ui *active_ui;
+// the message sink may pop GUI widgets, so it must run on the UI thread. Captured
+// in ui_create (which runs on it); ui_msg falls back to stderr from any other thread.
+static pthread_t ui_thread;
+static bool ui_thread_set;
 
 // in order of preference
 struct ui_drv* uis[] = {
@@ -78,6 +85,8 @@ struct ui * ui_create(const char *name)
 				free(ui);
 				return NULL;
 			}
+			ui_thread = pthread_self();
+			ui_thread_set = true;
 			active_ui = ui;
 			return ui;
 		}
@@ -139,7 +148,12 @@ void ui_msg(em400_sev_t sev, const char *fmt, ...)
 	vsnprintf(buf, sizeof buf, fmt, vl);
 	va_end(vl);
 
-	if (active_ui && active_ui->drv->msg) {
+	bool on_ui_thread = ui_thread_set && pthread_equal(pthread_self(), ui_thread);
+	// once the UI thread exists, user-facing messages must originate on it;
+	// not-yet-set means early startup (pre-ui_create), which stderr handles.
+	assert((!ui_thread_set || on_ui_thread) && "ui_msg called off the UI thread");
+
+	if (active_ui && active_ui->drv->msg && on_ui_thread) {
 		active_ui->drv->msg(active_ui->data, sev, buf);
 	} else {
 		ui_msg_stderr(sev, buf);
