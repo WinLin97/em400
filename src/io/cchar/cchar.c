@@ -130,7 +130,7 @@ void cchar_reset(chan_t *chan)
 
 	for (int i=0 ; i<CCHAR_MAX_DEVICES ; i++) {
 		cchar_unit_t *u = ch->unit[i];
-		if (u) {
+		if (u && u->reset) {
 			u->reset(u);
 		}
 	}

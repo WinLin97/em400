@@ -308,7 +308,7 @@ static void on_handle_close(uv_handle_t* handle)
 // -----------------------------------------------------------------------
 static void terminal_ioloop_teardown(terminal_t *terminal)
 {
-	if ((terminal->client) && !uv_is_closing((uv_handle_t *) &terminal->client)){
+	if ((terminal->client) && !uv_is_closing((uv_handle_t *) terminal->client)){
 		uv_close((uv_handle_t *) terminal->client, on_tcp_close);
 	}
 	if (!uv_is_closing((uv_handle_t *) &terminal->timer_write)) {

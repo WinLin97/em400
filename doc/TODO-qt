@@ -16,16 +16,15 @@ Requires more emu work:
 To investigate, open questions:
 
  * symbols (loading, saving, in-dasm usage)
- * log manipulation (where? config? widget? additional bottom bar?)
+ * memview: load from address (jak load OS, zamiast load OS?)
  * save memory: menu? memview?
  * background sound
  * help? (?) on more widgets?
  * details on mouseover? (dec/hex/oct/bin/field decodes) - sr, r0, rz, memview
- * delegating error display to the UI? only startup errors?
- * delegating logs to the UI? own logview?
 
 Potential, for the future:
 
+ * log manipulation through a dedicated dock?
  * commandline - only if it proves genuinely superior to using existing UI elements
  * micro-panel
  * dasm syntax highlight

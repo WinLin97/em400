@@ -6,12 +6,9 @@ Work notes:
   -O machine.mera400:memory.elwro_modules ?
   -M memory.elwro_modules ?
 * drop e4i (auto-migrate? ui popup?)
-* config migration - UI popup?
 
 * reconsider terminal input buffering
 * make uzfx/sp45de async?
-* shutdown() can be always called?
-* handling errors during initialization
 * make winchester async
 * make MX terminal working
 * make MX async?

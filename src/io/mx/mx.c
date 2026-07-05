@@ -222,27 +222,32 @@ static void mx_lines_deinit(chan_mx_t *multix)
 	for (int i=0 ; i<MX_LINE_CNT ; i++) {
 		struct mx_line *lline = multix->llines[i];
 		if (lline) {
-			// quit the protocol thread
+			// quit the protocol thread; if QUIT can't be delivered (alloc or
+			// enqueue failed) cancel it, so a failure never orphans the thread
 			struct mx_event *ev = (struct mx_event *) malloc(sizeof(struct mx_event));
+			bool proto_quit_sent = false;
 			if (ev) {
 				ev->type = MX_EV_QUIT;
-				if (elst_insert(lline->protoq, ev, MX_EV_QUIT) > 0) {
-					pthread_join(lline->proto_th, NULL);
-				} else {
-					LOG(L_MX, "Failed to send QUIT event to %s protocol queue on line %i, terminating event thread", lline->proto->name, lline->log_n );
-					pthread_cancel(lline->proto_th);
-				}
+				proto_quit_sent = elst_insert(lline->protoq, ev, MX_EV_QUIT) > 0;
+			}
+			if (proto_quit_sent) {
+				pthread_join(lline->proto_th, NULL);
+			} else {
+				LOG(L_MX, "Could not deliver QUIT to %s protocol queue on line %i, cancelling thread", lline->proto->name, lline->log_n);
+				pthread_cancel(lline->proto_th);
 			}
 			// quit the status thread
 			struct mx_event *ev2 = (struct mx_event *) malloc(sizeof(struct mx_event));
+			bool status_quit_sent = false;
 			if (ev2) {
 				ev2->type = MX_EV_QUIT;
-				if (elst_insert(lline->statusq, ev2, MX_EV_QUIT) > 0) {
-					pthread_join(lline->status_th, NULL);
-				} else {
-					LOG(L_MX, "Failed to send QUIT event to %s status queue on line %i, terminating event thread", lline->proto->name, lline->log_n );
-					pthread_cancel(lline->status_th);
-				}
+				status_quit_sent = elst_insert(lline->statusq, ev2, MX_EV_QUIT) > 0;
+			}
+			if (status_quit_sent) {
+				pthread_join(lline->status_th, NULL);
+			} else {
+				LOG(L_MX, "Could not deliver QUIT to %s status queue on line %i, cancelling thread", lline->proto->name, lline->log_n);
+				pthread_cancel(lline->status_th);
 			}
 			lline->log_n = -1;
 			lline->status = MX_LSTATE_NONE;

@@ -88,6 +88,7 @@ int mem_init(const struct em400_mem_cfg *c_mem)
 	res = mem_mega_init(mega_modules, c_mem->mega_prom_image);
 	if (res != E_OK) {
 		LOG(L_MEM, "Failed to initialize MEGA memory.");
+		mem_elwro_shutdown();
 		return E_ERR;
 	}
 	// no mem_cmd_handlers[] are set for MEGA,

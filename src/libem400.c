@@ -117,6 +117,7 @@ static int device_build(unsigned chnum, unsigned devnum, const struct em400_devi
 	}
 	if (io_dev_connect(chnum, devnum, dev) != E_OK) {
 		LOG(L_LIB, "Device %i.%i: failed to connect to channel", chnum, devnum);
+		dev->shutdown(dev);
 		return E_ERR;
 	}
 
