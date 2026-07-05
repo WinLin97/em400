@@ -1215,6 +1215,8 @@ void ConfigDialog::update_enabled_states()
 		if (!have && machine_page->isAncestorOf(w)) enable = false;
 		w->setEnabled(enable);
 	}
+
+	io_update_buttons();
 }
 
 // -----------------------------------------------------------------------

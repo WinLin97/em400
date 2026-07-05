@@ -1,3 +1,4 @@
+/docs
 /build
 /tests/images/*.e4i
 /tests/images/*.img
@@ -5,3 +6,4 @@
 /tools/*.pyc
 CMakeLists.txt.user
 /tests/*.set
+/.vscode
