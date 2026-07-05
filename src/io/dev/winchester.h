@@ -29,7 +29,6 @@ struct winchester {
 
 	char *image_name;
 	FILE *image;
-	long data_offset;
 };
 
 em400_dev_t * winchester_create(const char *image);

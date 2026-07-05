@@ -129,6 +129,7 @@ struct e4i_t * e4i_create_seq(char *img_name, uint16_t id_size, uint16_t block_s
 int e4i_init(struct e4i_t *e, e4i_id_gen_f *genf, uint16_t img_type, uint16_t img_utype);
 int e4i_import(struct e4i_t *e, char *src_name, uint16_t img_type, uint16_t img_utype);
 int e4i_export(struct e4i_t *e, char *dst_name);
+int e4i_migrate_to_raw(const char *src, char **new_path);
 
 // CHS access
 int e4i_sread(struct e4i_t *e, uint8_t *buf, int cyl, int head, int sect);

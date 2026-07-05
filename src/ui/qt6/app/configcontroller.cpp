@@ -98,16 +98,30 @@ void ConfigController::set_disk_image(unsigned chan, unsigned dev, unsigned slot
 	if (!m) return;
 
 	QByteArray p = path.toUtf8();
-	if (!appcfg_set_image(m, chan, dev, slot, p.constData())) return;
+	const char *use_path = p.constData();
 
-	emu->reload_media(chan, dev, slot, p.constData());
+	char *migrated = nullptr;
+	bool is_winchester = (chan < EM400_IO_MAX_CHAN) && (dev < EM400_CHAN_MAX_DEV)
+		&& (m->cfg.channel[chan].device[dev].type == EM400_DEV_WINCHESTER);
+	if (is_winchester && !path.isEmpty()) {
+		if (!appcfg_migrate_winchester_image(use_path, &migrated)) return;
+		use_path = migrated;
+	}
+
+	if (!appcfg_set_image(m, chan, dev, slot, use_path)) {
+		free(migrated);
+		return;
+	}
+
+	emu->reload_media(chan, dev, slot, use_path);
 
 	const char *cfgpath = appcfg_path();
 	if (!cfgpath || appcfg_write(cfg, cfgpath) != E_OK) {
 		em400_msg(EM400_MSG_ERROR, "Failed to save configuration after media change");
 	}
 
-	emit media_changed(chan, dev, slot, path);
+	emit media_changed(chan, dev, slot, QString::fromUtf8(use_path));
+	free(migrated);
 }
 
 // vim: tabstop=4 shiftwidth=4 autoindent

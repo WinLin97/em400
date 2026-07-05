@@ -21,7 +21,6 @@
 #include "log.h"
 
 #include "io/dev/winchester.h"
-#include "io/dev/e4image.h"
 
 #define WINCH_CYLS 615
 #define WINCH_HEADS 4
@@ -29,11 +28,11 @@
 #define WINCH_SECTOR_SIZE 512
 
 // -----------------------------------------------------------------------
-static long winchester_offset(winchester_t *winchester, unsigned c, unsigned h, unsigned s)
+static long winchester_offset(unsigned c, unsigned h, unsigned s)
 {
 	if ((c >= WINCH_CYLS) || (h >= WINCH_HEADS) || (s >= WINCH_SPT)) return -1;
 	long block = s + (h * WINCH_SPT) + (c * WINCH_HEADS * WINCH_SPT);
-	return winchester->data_offset + block * WINCH_SECTOR_SIZE;
+	return block * WINCH_SECTOR_SIZE;
 }
 
 // -----------------------------------------------------------------------
@@ -41,7 +40,7 @@ int winchester_sector_rd(winchester_t *winchester, uint8_t *buf, unsigned c, uns
 {
 	if (!winchester->image) return DEV_STATUS_NOMEDIUM;
 
-	long offset = winchester_offset(winchester, c, h, s);
+	long offset = winchester_offset(c, h, s);
 	if ((offset < 0) || fseek(winchester->image, offset, SEEK_SET)) return DEV_STATUS_SEEKERR;
 	if (fread(buf, 1, WINCH_SECTOR_SIZE, winchester->image) != WINCH_SECTOR_SIZE) return DEV_STATUS_RDERR;
 
@@ -53,7 +52,7 @@ int winchester_sector_wr(winchester_t *winchester, uint8_t *buf, unsigned c, uns
 {
 	if (!winchester->image) return DEV_STATUS_NOMEDIUM;
 
-	long offset = winchester_offset(winchester, c, h, s);
+	long offset = winchester_offset(c, h, s);
 	if ((offset < 0) || fseek(winchester->image, offset, SEEK_SET)) return DEV_STATUS_SEEKERR;
 	if (fwrite(buf, 1, WINCH_SECTOR_SIZE, winchester->image) != WINCH_SECTOR_SIZE) return DEV_STATUS_WRERR;
 
@@ -133,17 +132,13 @@ em400_dev_t * winchester_create(const char *image_name)
 		winchester->image_name = strdup(image_name);
 		LOG(L_WNCH, "Opening image: %s", winchester->image_name);
 
-		struct e4i_t *probe = e4i_open(winchester->image_name);
-		winchester->data_offset = probe ? E4I_HEADER_SIZE : 0;
-		e4i_close(probe);
-
 		// Image set by the user but unavailable or wrong still allows the machine to boot
 		// but: a) show user the error, b) disk is not operational
 		winchester->image = fopen(winchester->image_name, "rb+");
 		if (!winchester->image) {
 			LOGWARN("Failed to open Winchester image \"%s\". Drive starts not ready (no winchester connected).", winchester->image_name);
 		} else {
-			long expected = winchester->data_offset + (long) WINCH_CYLS * WINCH_HEADS * WINCH_SPT * WINCH_SECTOR_SIZE;
+			long expected = (long) WINCH_CYLS * WINCH_HEADS * WINCH_SPT * WINCH_SECTOR_SIZE;
 			if (fseek(winchester->image, 0, SEEK_END) || (ftell(winchester->image) != expected)) {
 				LOGWARN("Winchester image \"%s\" size does not match the %i/%i/%i geometry (expected %li bytes). Drive starts not ready (no winchester connected).", winchester->image_name, WINCH_CYLS, WINCH_HEADS, WINCH_SPT, expected);
 				fclose(winchester->image);

@@ -365,6 +365,8 @@ int main(int argc, char** argv)
 	cfg_free(cfg);
 	cfg = NULL;
 
+	appcfg_migrate_images(&appcfg);
+
 	if (ui_run(ui, program) != E_OK) {
 		goto done;
 	}

@@ -23,6 +23,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <string.h>
+#include <strings.h>
 #ifdef _WIN32
 #include <winsock2.h>
 #else
@@ -665,6 +666,54 @@ int e4i_bappend(struct e4i_t *e, uint8_t *buf, int count)
 int e4i_rewind(struct e4i_t *e)
 {
 
+	return E4I_E_OK;
+}
+
+// -----------------------------------------------------------------------
+static char * raw_image_name(const char *src)
+{
+	size_t len = strlen(src);
+	const char *dot = strrchr(src, '.');
+	size_t base = (dot && !strcasecmp(dot, ".e4i")) ? (size_t) (dot - src) : len;
+	char *out = (char *) malloc(base + 5);
+	if (!out) {
+		return NULL;
+	}
+	memcpy(out, src, base);
+	memcpy(out + base, ".img", 5);
+	return out;
+}
+
+// -----------------------------------------------------------------------
+int e4i_migrate_to_raw(const char *src, char **new_path)
+{
+	struct e4i_t *e = e4i_open(src);
+	if (!e) {
+		return E4I_E_MAGIC;
+	}
+
+	char *dst = raw_image_name(src);
+	if (!dst) {
+		e4i_close(e);
+		return E4I_E_ALLOC;
+	}
+
+	if (access(dst, F_OK) == 0) {
+		free(dst);
+		e4i_close(e);
+		return E4I_E_EXISTS;
+	}
+
+	int ret = e4i_export(e, dst);
+	e4i_close(e);
+
+	if (ret != E4I_E_OK) {
+		remove(dst);
+		free(dst);
+		return ret;
+	}
+
+	*new_path = dst;
 	return E4I_E_OK;
 }
 

@@ -21,6 +21,7 @@
 
 #include "appcfg.h"
 #include "libem400.h"
+#include "io/dev/e4image.h"
 
 struct appcfg appcfg;
 
@@ -766,6 +767,67 @@ void appcfg_set_path(const char *path)
 const char * appcfg_path(void)
 {
 	return appcfg_resolved_path;
+}
+
+// -----------------------------------------------------------------------
+bool appcfg_migrate_winchester_image(const char *src, char **use_path)
+{
+	char *raw = NULL;
+	int ret = e4i_migrate_to_raw(src, &raw);
+	switch (ret) {
+		case E4I_E_OK:
+			em400_msg(EM400_MSG_INFO,
+				"Migrated deprecated .e4i winchester image to raw format:\n"
+				"FROM: %s (kept as backup)\n"
+				"TO: %s",
+				src, raw);
+			*use_path = raw;
+			return true;
+		case E4I_E_MAGIC:
+			*use_path = dup_str(src);
+			return true;
+		case E4I_E_EXISTS:
+			em400_msg(EM400_MSG_WARNING,
+				"Winchester image \"%s\" uses the deprecated .e4i format and a raw image already exists at the target name; the .e4i will not be loaded. Point the configuration at the raw image instead.",
+				src);
+			return false;
+		default:
+			em400_msg(EM400_MSG_WARNING,
+				"Winchester image \"%s\" uses the deprecated .e4i format and could not be migrated to raw (%s); it will not be loaded.",
+				src, e4i_get_err(ret));
+			return false;
+	}
+}
+
+// -----------------------------------------------------------------------
+void appcfg_migrate_images(struct appcfg *c)
+{
+	bool changed = false;
+
+	for (int mi=0 ; mi<c->n_machines ; mi++) {
+		struct appcfg_machine *m = &c->machines[mi];
+		for (unsigned ch=0 ; ch<EM400_IO_MAX_CHAN ; ch++) {
+			for (unsigned d=0 ; d<EM400_CHAN_MAX_DEV ; d++) {
+				struct em400_device_cfg *dev = &m->cfg.channel[ch].device[d];
+				if ((dev->type != EM400_DEV_WINCHESTER) || !dev->winchester.image) {
+					continue;
+				}
+				char *use_path = NULL;
+				if (appcfg_migrate_winchester_image(dev->winchester.image, &use_path)) {
+					if (appcfg_set_image(m, ch, d, 0, use_path)) {
+						changed = true;
+					}
+				}
+				free(use_path);
+			}
+		}
+	}
+
+	// a failed persist is not fatal: the session runs on the migrated in-memory
+	// config, and a re-migration next launch hits the no-overwrite guard
+	if (changed && (appcfg_write(c, appcfg_path()) != E_OK)) {
+		em400_msg(EM400_MSG_WARNING, "Could not save the migrated winchester image paths to the configuration.");
+	}
 }
 
 // -----------------------------------------------------------------------

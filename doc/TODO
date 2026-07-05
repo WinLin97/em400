@@ -5,7 +5,7 @@ Work notes:
 * how to handle machine parameters:
   -O machine.mera400:memory.elwro_modules ?
   -M memory.elwro_modules ?
-* drop e4i (auto-migrate? ui popup?)
+* drop e4i/emitool sources
 
 * reconsider terminal input buffering
 * make uzfx/sp45de async?
