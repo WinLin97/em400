@@ -20,11 +20,18 @@
 
 #include <stdio.h>
 
+#include "libem400.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef void * (*ui_f_setup)(const char *);
 typedef int (*ui_f_poweron)(void *, const char *);
 typedef void (*ui_f_loop)(void*);
 typedef void (*ui_f_poweroff)(void*);
 typedef void (*ui_f_destroy)(void*);
+typedef void (*ui_f_msg)(void *, em400_sev_t, const char *);
 
 struct ui_drv {
 	const char *name;
@@ -33,6 +40,7 @@ struct ui_drv {
 	ui_f_loop loop;
 	ui_f_poweroff poweroff;
 	ui_f_destroy destroy;
+	ui_f_msg msg;
 };
 
 struct ui {
@@ -44,6 +52,12 @@ void ui_print_uis(FILE *fd);
 struct ui * ui_create(const char *name);
 int ui_run(struct ui *ui, const char *program);
 void ui_shutdown(struct ui *ui);
+
+void ui_msg(em400_sev_t sev, const char *fmt, ...);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 

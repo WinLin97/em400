@@ -145,6 +145,8 @@ signals:
 	void signal_clock_changed(bool clock);
 	// power lifecycle flipped (after init/shutdown settled); config gating listens
 	void signal_power_changed(bool on);
+	// a power-on attempt failed (init error); the ignition key snaps back to OFF
+	void signal_power_on_failed();
 	// id of the breakpoint that stopped the machine, or -1 when none (running,
 	// or stopped by something other than a breakpoint).
 	void signal_brk_hit_changed(int id);

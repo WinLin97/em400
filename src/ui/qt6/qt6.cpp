@@ -19,16 +19,19 @@
 #include <QSettings>
 #include <QTranslator>
 #include <QLocale>
+#include <QMessageBox>
 
 #include "mainwindow.h"
 #include "theme.h"
 
 #include "ui/ui.h"
 #include "libem400.h"
-#include "appcfg.h"
-#include "app_err.h"
 
 struct ui_qt6_data {
+	int argc;
+	char *argv[1];
+	QApplication *app;
+	const char *program;
 };
 
 static const char *ORG_NAME = "em400";
@@ -42,49 +45,72 @@ void * ui_qt6_setup(const char *call_name)
 		return NULL;
 	}
 
-	return ui;
-}
-
-// -----------------------------------------------------------------------
-static int ui_qt6_poweron(void *data, const char *program)
-{
-	QSettings settings(ORG_NAME, APP_NAME);
-	if (!program && !settings.value("ui/startPoweredOn", false).toBool()) {
-		return E_OK;
-	}
-	int res = em400_init(appcfg_active_machine(&appcfg), &appcfg.host);
-	app_msg_drain();
-	if (res != E_OK) {
-		return E_ERR;
-	}
-	if (program && !em400_load_os_image_path(program)) {
-		return app_err("Preloading OS memory failed: %s", program);
-	}
-	return E_OK;
-}
-
-// -----------------------------------------------------------------------
-void ui_qt6_loop(void *data)
-{
-	int argv = 1;
-	char *argc[] = { (char*)"em400" };
-	QApplication a(argv, argc);
+	ui->argc = 1;
+	ui->argv[0] = (char*)"em400";
+	ui->app = new QApplication(ui->argc, ui->argv);
 	QApplication::setOrganizationName(ORG_NAME);
 	QApplication::setApplicationName(APP_NAME);
 
-	QTranslator *translator = new QTranslator(&a);
+	QTranslator *translator = new QTranslator(ui->app);
 	if (translator->load(QLocale::system(), "em400-qt", "_", ":/i18n")) {
-		a.installTranslator(translator);
+		ui->app->installTranslator(translator);
 	}
 
 	// default custom dark theme
 	QSettings settings;
 	em400_apply_theme(settings.value("ui/panelTheme", true).toBool());
 
-	MainWindow w;
+	return ui;
+}
 
+// -----------------------------------------------------------------------
+static int ui_qt6_poweron(void *data, const char *program)
+{
+	struct ui_qt6_data *ui = (struct ui_qt6_data *) data;
+	ui->program = program;
+	return E_OK;
+}
+
+// -----------------------------------------------------------------------
+void ui_qt6_loop(void *data)
+{
+	struct ui_qt6_data *ui = (struct ui_qt6_data *) data;
+
+	MainWindow w;
 	w.show();
-	a.exec();
+
+	QSettings settings;
+	if (ui->program || settings.value("ui/startPoweredOn", false).toBool()) {
+		w.startup_power_on(ui->program);
+	}
+
+	ui->app->exec();
+}
+
+// -----------------------------------------------------------------------
+static void ui_qt6_msg(void *data, em400_sev_t sev, const char *text)
+{
+	(void) data;
+
+	QMessageBox::Icon icon;
+	QString title;
+	switch (sev) {
+		case EM400_MSG_ERROR:
+			icon = QMessageBox::Critical;
+			title = QCoreApplication::translate("ui_qt6", "Error");
+			break;
+		case EM400_MSG_WARNING:
+			icon = QMessageBox::Warning;
+			title = QCoreApplication::translate("ui_qt6", "Warning");
+			break;
+		default:
+			icon = QMessageBox::Information;
+			title = QCoreApplication::translate("ui_qt6", "Information");
+			break;
+	}
+
+	QMessageBox box(icon, title, QString::fromUtf8(text), QMessageBox::Ok, nullptr);
+	box.exec();
 }
 
 // -----------------------------------------------------------------------
@@ -97,6 +123,7 @@ static void ui_qt6_poweroff(void *data)
 void ui_qt6_destroy(void *data)
 {
 	struct ui_qt6_data *ui = (struct ui_qt6_data *) data;
+	delete ui->app;
 	free(ui);
 }
 
@@ -108,6 +135,7 @@ struct ui_drv ui_qt6 = {
 	.loop = ui_qt6_loop,
 	.poweroff = ui_qt6_poweroff,
 	.destroy = ui_qt6_destroy,
+	.msg = ui_qt6_msg,
 };
 
 // vim: tabstop=4 shiftwidth=4 autoindent

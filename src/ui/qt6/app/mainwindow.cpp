@@ -41,6 +41,7 @@
 #include "emdas.h"
 #include "theme.h"
 #include "configdialog.h"
+#include "libem400.h"
 
 // -----------------------------------------------------------------------
 namespace {
@@ -92,11 +93,6 @@ MainWindow::MainWindow(QWidget *parent) :
 	// rotary on IC by default
 	ui->cp->rotary->set_position(8);
 
-	// do the power-on if started with power on
-	if (e.is_powered()) {
-		ui->cp->ignition->set_position(1);
-		emit ui->cp->ignition->signal_power(true);
-	}
 	update_window_title();
 	update_docks_enabled(e.is_powered());
 
@@ -105,6 +101,24 @@ MainWindow::MainWindow(QWidget *parent) :
 	// keep startup focus off the debugger input fields (e.g. the dasm NB spinbox)
 	setFocusPolicy(Qt::StrongFocus);
 	setFocus();
+}
+
+// -----------------------------------------------------------------------
+void MainWindow::startup_power_on(const char *program)
+{
+	ui->cp->ignition->set_position(1);
+	emit ui->cp->ignition->signal_power(true);
+
+	// a failed init pops the error dialog; signal_power_on_failed -> force_off
+	// has already snapped the key back to OFF, so just stop here.
+	if (!e.is_powered()) {
+		return;
+	}
+
+	if (program && !em400_load_os_image_path(program)) {
+		em400_msg(EM400_MSG_ERROR, "Preloading OS memory failed: %s", program);
+		ui->cp->ignition->force_off();
+	}
 }
 
 // -----------------------------------------------------------------------
@@ -217,6 +231,7 @@ void MainWindow::wire_connections()
 	connect(ui->cp->ignition, &Ignition::signal_power, &e, &EmuModel::slot_power);
 	connect(&e, &EmuModel::signal_power_changed, this, &MainWindow::update_window_title);
 	connect(&e, &EmuModel::signal_power_changed, this, &MainWindow::update_docks_enabled);
+	connect(&e, &EmuModel::signal_power_on_failed, ui->cp->ignition, &Ignition::force_off);
 	connect(ui->cp, &ControlPanel::signal_start_toggled, &e, &EmuModel::slot_cpu_start);
 	connect(ui->cp, &ControlPanel::signal_clear_clicked, &e, &EmuModel::slot_clear);
 	connect(ui->cp, &ControlPanel::signal_oprq_clicked,  &e, &EmuModel::slot_oprq);

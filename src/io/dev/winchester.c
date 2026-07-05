@@ -129,37 +129,31 @@ em400_dev_t * winchester_create(const char *image_name)
 	winchester->base.eject = NULL;
 	winchester->base.image = winchester_image;
 
-	// No image means no winchester: the winchester comes up "not ready"
-	// (no medium) instead of failing. A given-but-unopenable image is still
-	// an error - the user asked for a specific disk that is not there.
 	if (image_name && *image_name) {
 		winchester->image_name = strdup(image_name);
 		LOG(L_WNCH, "Opening image: %s", winchester->image_name);
 
-		// Legacy e4image carries a header before the raw sector data; probe
-		// for it so we can skip past it. A bare raw image starts at offset 0.
 		struct e4i_t *probe = e4i_open(winchester->image_name);
 		winchester->data_offset = probe ? E4I_HEADER_SIZE : 0;
 		e4i_close(probe);
 
+		// Image set by the user but unavailable or wrong still allows the machine to boot
+		// but: a) show user the error, b) disk is not operational
 		winchester->image = fopen(winchester->image_name, "rb+");
 		if (!winchester->image) {
-			LOGERR("Failed to open Winchester image: \"%s\".", winchester->image_name);
-			free(winchester->image_name);
-			free(winchester);
-			return NULL;
-		}
-
-		long expected = winchester->data_offset + (long) WINCH_CYLS * WINCH_HEADS * WINCH_SPT * WINCH_SECTOR_SIZE;
-		if (fseek(winchester->image, 0, SEEK_END) || (ftell(winchester->image) != expected)) {
-			LOGERR("Winchester image \"%s\" size does not match the %i/%i/%i geometry (expected %li bytes).", winchester->image_name, WINCH_CYLS, WINCH_HEADS, WINCH_SPT, expected);
-			fclose(winchester->image);
-			free(winchester->image_name);
-			free(winchester);
-			return NULL;
+			LOGWARN("Failed to open Winchester image \"%s\". Drive starts not ready (no winchester connected).", winchester->image_name);
+		} else {
+			long expected = winchester->data_offset + (long) WINCH_CYLS * WINCH_HEADS * WINCH_SPT * WINCH_SECTOR_SIZE;
+			if (fseek(winchester->image, 0, SEEK_END) || (ftell(winchester->image) != expected)) {
+				LOGWARN("Winchester image \"%s\" size does not match the %i/%i/%i geometry (expected %li bytes). Drive starts not ready (no winchester connected).", winchester->image_name, WINCH_CYLS, WINCH_HEADS, WINCH_SPT, expected);
+				fclose(winchester->image);
+				winchester->image = NULL;
+			}
 		}
 	} else {
-		LOG(L_WNCH, "No image, winchester starts not ready (no medium)");
+		// No image set = no winchester drive, treated as intended by the user.
+		// Machine boots, but winchester operations give errors.
+		LOG(L_WNCH, "No image, winchester starts not ready (no winchester disk connected)");
 	}
 
 	return (em400_dev_t *) winchester;

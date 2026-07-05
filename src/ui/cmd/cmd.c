@@ -33,7 +33,6 @@ typedef int socklen_t;
 
 #include "libem400.h"
 #include "appcfg.h"
-#include "app_err.h"
 #include "ui/ui.h"
 #include "ui/cmd/commands.h"
 #include "ui/cmd/utils.h"
@@ -237,13 +236,11 @@ static void ui_cmd_session(struct ui_cmd_data *ui)
 // -----------------------------------------------------------------------
 static int ui_cmd_poweron(void *data, const char *program)
 {
-	int res = em400_init(appcfg_active_machine(&appcfg), &appcfg.host);
-	app_msg_drain();
-	if (res != E_OK) {
+	if (em400_init(appcfg_active_machine(&appcfg), &appcfg.host) != E_OK) {
 		return E_ERR;
 	}
 	if (program && !em400_load_os_image_path(program)) {
-		return app_err("Preloading OS memory failed: %s", program);
+		return em400_msg(EM400_MSG_ERROR, "Preloading OS memory failed: %s", program);
 	}
 	return E_OK;
 }
@@ -282,6 +279,20 @@ void ui_cmd_ui_stop(void *data)
 }
 
 // -----------------------------------------------------------------------
+static void ui_cmd_msg(void *data, em400_sev_t sev, const char *text)
+{
+	(void) data;
+
+	const char *prefix = "";
+	if (sev == EM400_MSG_ERROR) {
+		prefix = "ERROR: ";
+	} else if (sev == EM400_MSG_WARNING) {
+		prefix = "WARNING: ";
+	}
+	fprintf(stderr, "%s%s\n", prefix, text);
+}
+
+// -----------------------------------------------------------------------
 static void ui_cmd_poweroff(void *data)
 {
 	em400_shutdown();
@@ -311,7 +322,8 @@ struct ui_drv ui_cmd = {
 	.poweron = ui_cmd_poweron,
 	.loop = ui_cmd_loop,
 	.poweroff = ui_cmd_poweroff,
-	.destroy = ui_cmd_destroy
+	.destroy = ui_cmd_destroy,
+	.msg = ui_cmd_msg
 };
 
 // vim: tabstop=4 shiftwidth=4 autoindent

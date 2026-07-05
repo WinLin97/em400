@@ -58,6 +58,16 @@ void Ignition::set_position(int pos)
 }
 
 // -----------------------------------------------------------------------
+void Ignition::force_off()
+{
+	snd_l[0].play();
+	power_on_timer.stop();
+	position = 0;
+	update();
+	emit signal_power(false);
+}
+
+// -----------------------------------------------------------------------
 void Ignition::paintEvent(QPaintEvent *event)
 {
 	QPainter painter;

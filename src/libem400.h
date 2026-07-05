@@ -22,12 +22,9 @@
 #include <stdint.h>
 #include <stdio.h>
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-
 
 // -----------------------------------------------------------------------
 // --- LIMITS ------------------------------------------------------------
@@ -223,10 +220,16 @@ const char * em400_dev_get_image(unsigned chnum, unsigned devnum, unsigned slot)
 // --- LOGGING -----------------------------------------------------------
 // -----------------------------------------------------------------------
 
+typedef void (*em400_msg_sink_f)(em400_sev_t sev, const char *text);
+
+#define em400_log(fmt, ...) em400_logf(__func__, fmt, ##__VA_ARGS__)
+#define em400_msg(sev, ...) em400_msgf(sev, __func__, ##__VA_ARGS__)
+
 int em400_log_init(const char *file, em400_log_buf_type_t buf_type, const char *components, bool enabled);
 void em400_log_shutdown();
 void em400_logf(const char *func, const char *fmt, ...);
-#define em400_log(fmt, ...) em400_logf(__func__, fmt, ##__VA_ARGS__)
+void em400_set_msg_sink(em400_msg_sink_f sink);
+int em400_msgf(em400_sev_t sev, const char *func, const char *fmt, ...);
 bool em400_log_state();
 int em400_log_set(bool state);
 int em400_log_reopen(const char *file, em400_log_buf_type_t buf_type);
@@ -234,7 +237,6 @@ bool em400_log_component_state(unsigned component);
 int em400_log_component_set(unsigned component, bool state);
 const char * em400_log_component_name(unsigned component);
 int em400_log_component_id(const char *name);
-const char * em400_msg_take(em400_sev_t *sev);
 
 
 // -----------------------------------------------------------------------
@@ -274,8 +276,6 @@ void em400_cp_oprq();
 // rotary
 
 void em400_cp_reg_select(int reg_id);
-// ignition
-// off?
 
 // -----------------------------------------------------------------------
 // --- EM400 CONTROL PANEL EXTENSIONS ------------------------------------

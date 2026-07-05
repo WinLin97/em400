@@ -867,4 +867,19 @@ Sprawdź ustawienie w Konfiguracja -&gt; Ogólne.</translation>
         <translation>Usuń</translation>
     </message>
 </context>
+<context>
+    <name>ui_qt6</name>
+    <message>
+        <source>Error</source>
+        <translation>Błąd</translation>
+    </message>
+    <message>
+        <source>Warning</source>
+        <translation>Ostrzeżenie</translation>
+    </message>
+    <message>
+        <source>Information</source>
+        <translation>Informacja</translation>
+    </message>
+</context>
 </TS>

@@ -351,11 +351,10 @@ int cpu_init(const struct em400_host_cfg *host, const struct em400_machine_cfg *
 
 	if (sound_enabled) {
 		if (!speed_real) {
-			LOGERR("Sound requires emulation timing set to \"all\" or \"minimal\"");
-			goto fail;
-		}
-		if (buzzer_init(&host->sound) != E_OK) {
-			LOGWARN("Sound unavailable; continuing without sound.");
+			LOGWARN("Sound requires setting emulation timing to \"all\" or \"minimal\". Continuing without sound.");
+			sound_enabled = false;
+		} else if (buzzer_init(&host->sound) != E_OK) {
+			LOGWARN("Sound unavailable. Continuing without sound.");
 			sound_enabled = false;
 		}
 	}

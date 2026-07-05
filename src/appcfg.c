@@ -20,7 +20,7 @@
 #include <strings.h>
 
 #include "appcfg.h"
-#include "app_err.h"
+#include "libem400.h"
 
 struct appcfg appcfg;
 
@@ -147,7 +147,7 @@ int appcfg_copy(struct appcfg *dst, const struct appcfg *src)
 
 	if (src->n_machines) {
 		dst->machines = malloc(src->n_machines * sizeof(*dst->machines));
-		if (!dst->machines) return app_err("Failed to allocate machine configuration copy");
+		if (!dst->machines) return em400_msg(EM400_MSG_ERROR, "Failed to allocate machine configuration copy");
 		dst->cap_machines = src->n_machines;
 	}
 	for (int i=0 ; i<src->n_machines ; i++) {
@@ -280,11 +280,11 @@ static int build_device(em400_cfg *cfg, int chnum, int devnum, struct em400_devi
 		// TODO: remove dead "transport"
 		const char *transport = cfg_fgetstr(cfg, "dev%i.%i:transport", chnum, devnum);
 		if (transport && strcasecmp(transport, "tcp")) {
-			return app_err("Terminal only supports TCP transport type");
+			return em400_msg(EM400_MSG_ERROR, "Terminal only supports TCP transport type");
 		}
 		const int port = cfg_fgetint(cfg, "dev%i.%i:port", chnum, devnum);
 		if (port == -1) {
-			return app_err("Device %i.%i: terminal needs TCP port to be set.", chnum, devnum);
+			return em400_msg(EM400_MSG_ERROR, "Device %i.%i: terminal needs TCP port to be set.", chnum, devnum);
 		}
 		int speed = cfg_fgetint(cfg, "dev%i.%i:speed", chnum, devnum);
 		if (speed == -1) {
@@ -308,7 +308,7 @@ static int build_device(em400_cfg *cfg, int chnum, int devnum, struct em400_devi
 		dev->type = EM400_DEV_RTCLOCK;
 		dev->rtclock.prom = dup_path(cfg_fgetstr(cfg, "dev%i.%i:prom", chnum, devnum));
 	} else {
-		return app_err("Unknown device type: %s", dev_type_name);
+		return em400_msg(EM400_MSG_ERROR, "Unknown device type: %s", dev_type_name);
 	}
 
 	return E_OK;
@@ -336,7 +336,7 @@ static int build_io(em400_cfg *cfg, struct em400_machine_cfg *machine)
 		} else if (!strcasecmp(ch_name, "iotester")) {
 			chan->type = EM400_CHANNEL_IOTESTER;
 		} else {
-			return app_err("Unknown channel %i type: %s", chnum, ch_name);
+			return em400_msg(EM400_MSG_ERROR, "Unknown channel %i type: %s", chnum, ch_name);
 		}
 
 		for (int devnum=0 ; devnum<EM400_CHAN_MAX_DEV ; devnum++) {
@@ -391,7 +391,7 @@ static int build_device_new(em400_cfg *cfg, const char *sec, int chnum, int devn
 	if (!strcasecmp(dev_type_name, "terminal")) {
 		const int port = cfg_fgetint(cfg, "%s:dev.%i.%i.port", sec, chnum, devnum);
 		if (port == -1) {
-			return app_err("Device %i.%i: terminal needs TCP port to be set.", chnum, devnum);
+			return em400_msg(EM400_MSG_ERROR, "Device %i.%i: terminal needs TCP port to be set.", chnum, devnum);
 		}
 		int speed = cfg_fgetint(cfg, "%s:dev.%i.%i.speed", sec, chnum, devnum);
 		if (speed == -1) {
@@ -418,7 +418,7 @@ static int build_device_new(em400_cfg *cfg, const char *sec, int chnum, int devn
 		dev->type = EM400_DEV_RTCLOCK;
 		dev->rtclock.prom = dup_path(cfg_fgetstr(cfg, "%s:dev.%i.%i.prom", sec, chnum, devnum));
 	} else {
-		return app_err("Unknown device type: %s", dev_type_name);
+		return em400_msg(EM400_MSG_ERROR, "Unknown device type: %s", dev_type_name);
 	}
 
 	return E_OK;
@@ -446,7 +446,7 @@ static int build_io_new(em400_cfg *cfg, const char *sec, struct em400_machine_cf
 		} else if (!strcasecmp(ch_name, "iotester")) {
 			chan->type = EM400_CHANNEL_IOTESTER;
 		} else {
-			return app_err("Unknown channel %i type: %s", chnum, ch_name);
+			return em400_msg(EM400_MSG_ERROR, "Unknown channel %i type: %s", chnum, ch_name);
 		}
 
 		for (int devnum=0 ; devnum<EM400_CHAN_MAX_DEV ; devnum++) {
@@ -507,7 +507,7 @@ static int build_new(em400_cfg *cfg)
 		em400_log("Configuring machine '%s' (%s)", id, name ? name : "unnamed");
 		struct appcfg_machine *m = appcfg_machine_add(&appcfg, id, name);
 		if (!m) {
-			return app_err("Failed to allocate machine configuration: %s", id);
+			return em400_msg(EM400_MSG_ERROR, "Failed to allocate machine configuration: %s", id);
 		}
 		if (build_machine_new(cfg, sec, &m->cfg) != E_OK) {
 			em400_log("Failed to build configuration for machine: %s", id);
@@ -575,7 +575,7 @@ int appcfg_build_from_ini(em400_cfg *cfg)
 	em400_log("Reading legacy-format configuration, importing it as machine '%s'", APPCFG_IMPORTED_MACHINE_ID);
 	struct appcfg_machine *m = appcfg_machine_add(&appcfg, APPCFG_IMPORTED_MACHINE_ID, "Imported configuration");
 	if (!m) {
-		return app_err("Failed to allocate machine configuration");
+		return em400_msg(EM400_MSG_ERROR, "Failed to allocate machine configuration");
 	}
 	if (build_machine(cfg, &m->cfg) != E_OK) {
 		em400_log("Failed to build EM400 I/O configuration");
@@ -713,7 +713,7 @@ int appcfg_write(const struct appcfg *c, const char *path)
 
 	FILE *f = fopen(path, "w");
 	if (!f) {
-		return app_err("Cannot open config file for writing: %s", path);
+		return em400_msg(EM400_MSG_ERROR, "Cannot open config file for writing: %s", path);
 	}
 
 	fprintf(f, "[general]\n");

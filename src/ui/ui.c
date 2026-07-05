@@ -21,15 +21,18 @@
 #endif
 
 #include <stdlib.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <string.h>
 #include <strings.h>
 
 #include "libem400.h"
-#include "app_err.h"
 #include "ui/ui.h"
 
 extern struct ui_drv ui_cmd;
 extern struct ui_drv ui_qt6;
+
+static struct ui *active_ui;
 
 // in order of preference
 struct ui_drv* uis[] = {
@@ -63,7 +66,7 @@ struct ui * ui_create(const char *name)
 		if (!strncasecmp(name, (*drv)->name, strlen((*drv)->name))) {
 			struct ui *ui = (struct ui *) calloc(1, sizeof(struct ui));
 			if (!ui) {
-				app_err("Memory allocation error when creating UI.");
+				em400_msg(EM400_MSG_ERROR, "Memory allocation error when creating UI.");
 				return NULL;
 			}
 			ui->drv = *drv;
@@ -71,17 +74,17 @@ struct ui * ui_create(const char *name)
 			// setup the UI
 			ui->data = ui->drv->setup(name);
 			if (!ui->data) {
-				app_err("Failed to setup UI: %s.", name);
+				em400_msg(EM400_MSG_ERROR, "Failed to setup UI: %s.", name);
+				free(ui);
 				return NULL;
-			} else {
-				em400_log("UI started: %s", name);
 			}
+			active_ui = ui;
 			return ui;
 		}
 		drv++;
 	}
 
-	app_err("Unknown UI: %s.", name);
+	em400_msg(EM400_MSG_ERROR, "Unknown UI: %s.", name);
 	return NULL;
 }
 
@@ -107,8 +110,40 @@ void ui_shutdown(struct ui *ui)
 	if (ui->drv->poweroff) {
 		ui->drv->poweroff(ui->data);
 	}
+	if (ui == active_ui) {
+		active_ui = NULL;
+	}
 	ui->drv->destroy(ui->data);
 	free(ui);
+}
+
+// -----------------------------------------------------------------------
+static void ui_msg_stderr(em400_sev_t sev, const char *text)
+{
+	const char *prefix = "";
+	if (sev == EM400_MSG_ERROR) {
+		prefix = "ERROR: ";
+	} else if (sev == EM400_MSG_WARNING) {
+		prefix = "WARNING: ";
+	}
+	fprintf(stderr, "%s%s\n", prefix, text);
+}
+
+// -----------------------------------------------------------------------
+void ui_msg(em400_sev_t sev, const char *fmt, ...)
+{
+	char buf[512];
+
+	va_list vl;
+	va_start(vl, fmt);
+	vsnprintf(buf, sizeof buf, fmt, vl);
+	va_end(vl);
+
+	if (active_ui && active_ui->drv->msg) {
+		active_ui->drv->msg(active_ui->data, sev, buf);
+	} else {
+		ui_msg_stderr(sev, buf);
+	}
 }
 
 // vim: tabstop=4 shiftwidth=4 autoindent

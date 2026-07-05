@@ -157,35 +157,45 @@ int em400_init(const struct em400_machine_cfg *machine, const struct em400_host_
 #endif
 	if (mem_init(&machine->mem) != E_OK) {
 		LOG(L_LIB, "Failed to initialize memory.");
-		return E_ERR;
+		goto fail;
 	}
 	if (cpu_init(host, machine) != E_OK) {
 		LOG(L_LIB, "Failed to initialize CPU.");
-		return E_ERR;
+		goto fail;
 	}
 	if (io_init(host->emu.timing) != E_OK) {
 		LOG(L_LIB, "Failed to initialize I/O.");
-		return E_ERR;
+		goto fail;
 	}
 
 	for (unsigned chnum=0 ; chnum<EM400_IO_MAX_CHAN ; chnum++) {
 		if (channel_build(chnum, &machine->channel[chnum]) != E_OK) {
 			LOG(L_LIB, "Failed to initialize I/O channels.");
-			return E_ERR;
+			goto fail;
 		}
 	}
 
 	if (io_run() != E_OK) {
 		LOG(L_LIB, "Failed to start the I/O loop.");
-		return E_ERR;
+		goto fail;
 	}
 
 	if (machine->mem.preload_image && *machine->mem.preload_image && !em400_load_os_image_path(machine->mem.preload_image)) {
-		return LOGERR("Failed to preload OS image: %s", machine->mem.preload_image);
+		LOGERR("Failed to preload OS image: %s", machine->mem.preload_image);
+		goto fail;
 	}
 
 	powered = true;
 	return E_OK;
+
+fail:
+	io_shutdown();
+	cpu_shutdown();
+	mem_shutdown();
+#ifdef _WIN32
+	timeEndPeriod(1);
+#endif
+	return E_ERR;
 }
 
 // -----------------------------------------------------------------------
@@ -287,9 +297,19 @@ int em400_log_init(const char *file, em400_log_buf_type_t buf_type, const char *
 }
 
 // -----------------------------------------------------------------------
-const char * em400_msg_take(em400_sev_t *sev)
+void em400_set_msg_sink(em400_msg_sink_f sink)
 {
-	return log_msg_take(sev);
+	log_set_msg_sink(sink);
+}
+
+// -----------------------------------------------------------------------
+int em400_msgf(em400_sev_t sev, const char *func, const char *fmt, ...)
+{
+	va_list vl;
+	va_start(vl, fmt);
+	log_msg_va(sev, func, fmt, vl);
+	va_end(vl);
+	return sev >= EM400_MSG_ERROR ? E_ERR : E_OK;
 }
 
 // -----------------------------------------------------------------------

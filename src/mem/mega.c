@@ -67,7 +67,7 @@ int mem_mega_init(int module_count, const char *prom_image)
 	}
 
 	if (module_count > MEM_MODULES) {
-		return LOGERR("Wrong number of MEGA modules: %i. Should be < %i", module_count, MEM_MODULES);
+		return LOGERR("Wrong number of MEGA modules: %i. Should be <= %i", module_count, MEM_MODULES);
 	}
 
 	memset(mem_mega_frame_ffff, 0xff, 2*MEM_FRAME_SIZE);

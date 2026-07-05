@@ -36,6 +36,11 @@ public:
 	explicit MainWindow(QWidget *parent = nullptr);
 	~MainWindow();
 
+	// Startup power-on, driven through the ignition switch so the switch
+	// graphic, EmuModel and the power-changed signal stay consistent. `program`
+	// (the -p image, may be null) is preloaded after a successful init.
+	void startup_power_on(const char *program);
+
 private:
     EmuModel e;
 	ConfigController cfg_ctl;

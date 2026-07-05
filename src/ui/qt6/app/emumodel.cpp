@@ -4,7 +4,7 @@
 #include "emumodel.h"
 #include "libem400.h"
 #include "appcfg.h"
-#include "app_err.h"
+#include "ui/ui.h"
 
 
 // -----------------------------------------------------------------------
@@ -54,10 +54,10 @@ void EmuModel::stop()
 void EmuModel::slot_power(bool on)
 {
 	if (on) {
-		int res = em400_init(appcfg_active_machine(&appcfg), &appcfg.host);
-		app_msg_drain();
-		if (res == E_OK) {
+		if (em400_init(appcfg_active_machine(&appcfg), &appcfg.host) == E_OK) {
 			run();
+		} else {
+			emit signal_power_on_failed();
 		}
 	} else {
 		stop();

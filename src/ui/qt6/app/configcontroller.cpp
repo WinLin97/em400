@@ -20,7 +20,7 @@
 #include "configcontroller.h"
 #include "emumodel.h"
 #include "appcfg.h"
-#include "app_err.h"
+#include "libem400.h"
 
 // -----------------------------------------------------------------------
 namespace {
@@ -72,7 +72,7 @@ bool ConfigController::apply_and_save(const struct appcfg *work)
 {
 	const char *path = appcfg_path();
 	if (!path) {
-		app_err("No configuration file path to save to");
+		em400_msg(EM400_MSG_ERROR, "No configuration file path to save to");
 		return false;
 	}
 	if (appcfg_write(work, path) != E_OK) return false;
@@ -104,7 +104,7 @@ void ConfigController::set_disk_image(unsigned chan, unsigned dev, unsigned slot
 
 	const char *cfgpath = appcfg_path();
 	if (!cfgpath || appcfg_write(cfg, cfgpath) != E_OK) {
-		app_err("Failed to save configuration after media change");
+		em400_msg(EM400_MSG_ERROR, "Failed to save configuration after media change");
 	}
 
 	emit media_changed(chan, dev, slot, path);

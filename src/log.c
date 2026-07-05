@@ -51,17 +51,12 @@ static const char * log_component_names[] = {
 };
 
 atomic_uint log_components_enabled = 0; // components currently enabled or 0 if logging is disabled
-// L_LIB carries library-general output and all error lines (log_err), so it is
-// always selected and can never be silenced. L_APP is on by default but excludable.
 static atomic_uint log_components_selected = 1 << L_LIB;
 static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 static char *log_file_name;
 static FILE *log_file;
 static bool log_buf_type;
-
-// Pending error/warning message in a stable library-owned buffer
-static em400_sev_t msg_sev = EM400_MSG_NONE;
-static char msg_text[512];
+static em400_msg_sink_f msg_sink;
 
 // high-level stuff
 
@@ -292,30 +287,16 @@ static const char * log_sev_prefix(em400_sev_t sev)
 }
 
 // -----------------------------------------------------------------------
-static void log_msg_store(em400_sev_t sev, const char *text)
+void log_set_msg_sink(em400_msg_sink_f sink)
 {
-	if (sev > msg_sev) {
-		snprintf(msg_text, sizeof msg_text, "%s", text);
-		msg_sev = sev;
-	}
+	msg_sink = sink;
 }
 
 // -----------------------------------------------------------------------
-const char * log_msg_take(em400_sev_t *sev)
-{
-	const char *text = msg_sev != EM400_MSG_NONE ? msg_text : NULL;
-	if (sev) *sev = msg_sev;
-	msg_sev = EM400_MSG_NONE;
-	return text;
-}
-
-// -----------------------------------------------------------------------
-static void log_msg(em400_sev_t sev, const char *func, const char *msgfmt, va_list vl)
+void log_msg_va(em400_sev_t sev, const char *func, const char *fmt, va_list vl)
 {
 	char buf[512];
-	vsnprintf(buf, sizeof buf, msgfmt, vl);
-
-	log_msg_store(sev, buf);
+	vsnprintf(buf, sizeof buf, fmt, vl);
 
 	if (log_is_enabled()) {
 		char thname[16];
@@ -327,6 +308,13 @@ static void log_msg(em400_sev_t sev, const char *func, const char *msgfmt, va_li
 		}
 		pthread_mutex_unlock(&log_mutex);
 	}
+
+	// surfaces even with logging disabled. stderr only until a UI registers
+	if (msg_sink) {
+		msg_sink(sev, buf);
+	} else {
+		fprintf(stderr, "%s%s\n", log_sev_prefix(sev), buf);
+	}
 }
 
 // -----------------------------------------------------------------------
@@ -334,7 +322,7 @@ int log_err(const char *func, const char *msgfmt, ...)
 {
 	va_list vl;
 	va_start(vl, msgfmt);
-	log_msg(EM400_MSG_ERROR, func, msgfmt, vl);
+	log_msg_va(EM400_MSG_ERROR, func, msgfmt, vl);
 	va_end(vl);
 	return E_ERR;
 }
@@ -344,7 +332,7 @@ int log_warn(const char *func, const char *msgfmt, ...)
 {
 	va_list vl;
 	va_start(vl, msgfmt);
-	log_msg(EM400_MSG_WARNING, func, msgfmt, vl);
+	log_msg_va(EM400_MSG_WARNING, func, msgfmt, vl);
 	va_end(vl);
 	return E_OK;
 }

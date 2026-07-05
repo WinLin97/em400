@@ -28,8 +28,13 @@
 #include "ui/ui.h"
 #include "appcfg.h"
 #include "cfg.h"
-#include "app_err.h"
 #include "default_config.h"
+
+// -----------------------------------------------------------------------
+static void em400_msg_to_ui(em400_sev_t sev, const char *text)
+{
+	ui_msg(sev, "%s", text);
+}
 
 // -----------------------------------------------------------------------
 static int em400_top_init(em400_cfg *cfg, const char *machine_id)
@@ -43,7 +48,6 @@ static int em400_top_init(em400_cfg *cfg, const char *machine_id)
 	bool log_enabled = cfg_getbool(cfg, "log:enabled", CFG_DEFAULT_LOG_ENABLED);
 
 	if (em400_log_init(log_file_name, log_buf_type, log_components, log_enabled) != E_OK) {
-		app_msg_drain();
 		return E_ERR;
 	}
 
@@ -54,7 +58,7 @@ static int em400_top_init(em400_cfg *cfg, const char *machine_id)
 
 	if (machine_id) {
 		if (!appcfg_machine_find(&appcfg, machine_id)) {
-			return app_err("No such machine in configuration: %s", machine_id);
+			return em400_msg(EM400_MSG_ERROR, "No such machine in configuration: %s", machine_id);
 		}
 		em400_log("Active machine overridden from commandline: %s", machine_id);
 		free(appcfg.active_id);
@@ -196,7 +200,7 @@ static int write_default_config(const char *path)
 const char em400_cmdline_opts[] = "hc:m:p:l:Lu:O:";
 
 // -----------------------------------------------------------------------
-static int em400_cmdline_1(int argc, char **argv, int *print_help, char **config)
+static int em400_cmdline_1(int argc, char **argv, int *print_help, char **config, const char **ui)
 {
 	int option;
 
@@ -208,15 +212,17 @@ static int em400_cmdline_1(int argc, char **argv, int *print_help, char **config
 			case 'c':
 				*config = strdup(optarg);
 				break;
+			case 'u':
+				*ui = optarg;
+				break;
 			case 'm':
 			case 'p':
 			case 'L':
 			case 'l':
-			case 'u':
 			case 'O':
 				break;
 			default:
-				return E_ERR;
+				return em400_msg(EM400_MSG_ERROR, "Failed to parse commandline arguments (pass 1)");
 		}
 	}
 
@@ -224,7 +230,7 @@ static int em400_cmdline_1(int argc, char **argv, int *print_help, char **config
 }
 
 // -----------------------------------------------------------------------
-static int em400_cmdline_2(em400_cfg *cfg, int argc, char **argv, const char **program, const char **machine, const char **ui)
+static int em400_cmdline_2(em400_cfg *cfg, int argc, char **argv, const char **program, const char **machine)
 {
 	int option;
 	optind = 1; // reset to 1 so consecutive calls work
@@ -233,6 +239,7 @@ static int em400_cmdline_2(em400_cfg *cfg, int argc, char **argv, const char **p
 		switch (option) {
 			case 'h':
 			case 'c':
+			case 'u':
 				break;
 			case 'm':
 				*machine = optarg;
@@ -247,20 +254,17 @@ static int em400_cmdline_2(em400_cfg *cfg, int argc, char **argv, const char **p
 				cfg_set(cfg, "log:enabled", "true");
 				cfg_set(cfg, "log:components", optarg);
 				break;
-			case 'u':
-				*ui = optarg;
-				break;
 			case 'O':
 				const char *colon = strchr(optarg, ':');
 				const char *key = strtok(optarg, "=");
 				const char *val = strtok(NULL, "=");
 				if (!colon || !key || !val) {
-					return app_err("Syntax error for -O switch. Should be: -O section:key=value");
+					return em400_msg(EM400_MSG_ERROR, "Syntax error for -O switch. Should be: -O section:key=value");
 				}
 				cfg_set(cfg, key, val);
 				break;
 			default:
-				return E_ERR;
+				return em400_msg(EM400_MSG_ERROR, "Failed to parse commandline arguments (pass 2)");
 		}
 	}
 
@@ -283,10 +287,10 @@ int main(int argc, char** argv)
 	em400_cfg *cfg = NULL;
 	struct ui *ui = NULL;
 
+	em400_set_msg_sink(em400_msg_to_ui);
 	em400_mkconfdir();
 
-	if (em400_cmdline_1(argc, argv, &print_help, &config) != E_OK) {
-		app_err("Failed to parse commandline arguments (pass 1)");
+	if (em400_cmdline_1(argc, argv, &print_help, &config, &ui_name) != E_OK) {
 		goto done;
 	}
 
@@ -296,10 +300,14 @@ int main(int argc, char** argv)
 		goto done;
 	}
 
+	if (!(ui = ui_create(ui_name))) {
+		goto done;
+	}
+
 	if (!config) {
 		config = config_path();
 		if (!config) {
-			app_err("Config filename memory allocation error");
+			em400_msg(EM400_MSG_ERROR, "Config filename memory allocation error");
 			goto done;
 		}
 		// first-run migration: no XDG config yet but a legacy one exists.
@@ -308,20 +316,18 @@ int main(int argc, char** argv)
 		if (access(config, F_OK) != 0) {
 			char *legacy = legacy_config_path();
 			if (legacy && (access(legacy, F_OK) == 0)) {
-				fprintf(stderr,
-					"em400: migrating your configuration to the new location:\n"
-					"  from: %s (now obsolete)\n"
-					"  to: %s\n",
+				em400_msg(EM400_MSG_INFO,
+					"Migrating your configuration to the new location:\n"
+					"FROM: %s (now obsolete)\n"
+					"TO: %s",
 					legacy, config);
 				migrate_to = config;
 				config = legacy;
 			} else {
 				free(legacy);
-				// genuine first run: no config anywhere. Create one from
-				// the embedded default so the user can boot and edit it.
-				fprintf(stderr, "em400: creating a default configuration at:\n  %s\n", config);
+				em400_log("Creating a default configuration at: %s", config);
 				if (write_default_config(config) != E_OK) {
-					app_err("Failed to create default config file: %s", config);
+					em400_msg(EM400_MSG_ERROR, "Failed to create default config file: %s", config);
 					goto done;
 				}
 			}
@@ -330,13 +336,12 @@ int main(int argc, char** argv)
 
 	cfg = cfg_load(config);
 	if (!cfg) {
-		app_err("Failed to load config file: %s", config);
+		em400_msg(EM400_MSG_ERROR, "Failed to load config file: %s", config);
 		goto done;
 	}
 
 	// read the commandline again to build final configuration
-	if (em400_cmdline_2(cfg, argc, argv, &program, &machine_id, &ui_name) != E_OK) {
-		app_err("Failed to parse commandline arguments (pass 2)");
+	if (em400_cmdline_2(cfg, argc, argv, &program, &machine_id) != E_OK) {
 		goto done;
 	}
 
@@ -359,10 +364,6 @@ int main(int argc, char** argv)
 	// nothing needs cfg anymore
 	cfg_free(cfg);
 	cfg = NULL;
-
-	if (!(ui = ui_create(ui_name))) {
-		goto done;
-	}
 
 	if (ui_run(ui, program) != E_OK) {
 		goto done;

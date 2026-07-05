@@ -59,7 +59,7 @@ int mem_elwro_init(int module_count, int os_pages)
 	}
 
 	if (module_count > MEM_MODULES) {
-		return LOGERR("Wrong number of Elwro modules: %i. Should be < %i.", module_count, MEM_MODULES);
+		return LOGERR("Wrong number of Elwro modules: %i. Should be <= %i.", module_count, MEM_MODULES);
 	}
 	if ((os_pages < 1) || (os_pages > 2)) {
 		return LOGERR("Wrong number of OS segment memory pages: %i. Should be 1 or 2.", os_pages);

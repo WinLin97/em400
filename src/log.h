@@ -51,7 +51,8 @@ int log_get_component_id(const char *name);
 
 int log_err(const char *func, const char *msgfmt, ...);
 int log_warn(const char *func, const char *msgfmt, ...);
-const char * log_msg_take(em400_sev_t *sev);
+void log_msg_va(em400_sev_t sev, const char *func, const char *fmt, va_list vl);
+void log_set_msg_sink(em400_msg_sink_f sink);
 void log_log(unsigned component, const char *func, const char *format, ...);
 void log_log_va(unsigned component, const char *func, const char *format, va_list args);
 void log_splitlog(unsigned component, const char *func, const char *text);

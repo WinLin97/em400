@@ -31,6 +31,7 @@ public:
 	explicit Ignition(QPixmap gfx[3], const QUrl snd_rs[3], const QUrl snd_ls[3], QWidget *parent = nullptr);
 	void set_volume(qreal linear_volume);
 	void set_position(int pos);
+	void force_off();
 
 protected:
 	void paintEvent(QPaintEvent *event);
