@@ -107,7 +107,7 @@ jobs:
       - name: Build and install emas
         run: git clone https://github.com/jakubfi/emas && cmake -S emas -B emas/build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}} && cmake --build emas/build && cmake --install emas/build
       - name: Configure project
-        run: cmake -S . -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}} -DEM400_BUILD_INSTALLER=ON
+        run: cmake -S . -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}}
       - name: Build
         run: cmake --build build
       - name: First run creates default config
@@ -129,6 +129,12 @@ jobs:
         run: cd tests && ./runtests.py
       - name: Run tests (timing all)
         run: cd tests && ./runtests.py -O general:timing=all
+      - name: Install (plain, no dependency bundling)
+        run: |
+          cmake --install build --prefix "$(cygpath -w "$PWD/stage")"
+          test -f stage/bin/em400.exe || { echo "em400.exe was not installed"; exit 1; }
+      - name: Configure installer build
+        run: cmake -S . -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}} -DEM400_BUILD_INSTALLER=ON
       - name: Build installer
         run: cd build && cpack
       - name: Upload installer
