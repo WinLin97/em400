@@ -107,7 +107,7 @@ jobs:
       - name: Build and install emas
         run: git clone https://github.com/jakubfi/emas && cmake -S emas -B emas/build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}} && cmake --build emas/build && cmake --install emas/build
       - name: Configure project
-        run: cmake -S . -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}}
+        run: cmake -S . -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}} -DEM400_BUILD_INSTALLER=ON
       - name: Build
         run: cmake --build build
       - name: First run creates default config

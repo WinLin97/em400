@@ -373,8 +373,13 @@ if(NOT WIN32 AND DL_LIBRARY)
 	target_link_libraries(em400 ${DL_LIBRARY})
 endif()
 
+# Off by default so a plain `install` stays lightweight (as on Linux). The CI
+# installer build turns it on to vendor dependency DLLs and produce the NSIS
+# package; a bare install into a mingw prefix resolves those DLLs via PATH.
+option(EM400_BUILD_INSTALLER "Build the self-contained Windows installer" OFF)
+
 # collects each exe's DLL dependencies for the Windows package
-if(WIN32)
+if(WIN32 AND EM400_BUILD_INSTALLER)
 	set(DEP_SET RUNTIME_DEPENDENCY_SET em400-deps)
 endif()
 
@@ -432,7 +437,7 @@ endif()
 
 # ---- Packaging: Windows installer (CPack/NSIS) ---------------------------
 
-if(WIN32)
+if(WIN32 AND EM400_BUILD_INSTALLER)
 	get_filename_component(MINGW_BINDIR ${CMAKE_C_COMPILER} DIRECTORY)
 	install(RUNTIME_DEPENDENCY_SET em400-deps
 		PRE_EXCLUDE_REGEXES "api-ms-" "ext-ms-" "hvsifiletrust" "pdmutilities"
