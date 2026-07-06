@@ -445,6 +445,16 @@ if(WIN32)
 		find_program(WINDEPLOYQT_EXECUTABLE NAMES windeployqt-qt6 windeployqt)
 		if(WINDEPLOYQT_EXECUTABLE)
 			install(CODE "execute_process(COMMAND \"${WINDEPLOYQT_EXECUTABLE}\" --release --no-translations \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/em400.exe\" COMMAND_ERROR_IS_FATAL ANY)")
+			# ship the Windows-native (WMF) media backend only: em400 uses
+			# QSoundEffect, and MSYS2's ffmpeg is a GPL-3 build incompatible
+			# with em400's GPL-2. Dropping its plugin leaves WMF as the sole
+			# backend, which Qt then picks automatically.
+			install(CODE "set(bindir \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}\")
+file(REMOVE \"\${bindir}/multimedia/ffmpegmediaplugin.dll\")
+file(GLOB ffmpeg_dlls \"\${bindir}/av*.dll\" \"\${bindir}/sw*.dll\")
+if(ffmpeg_dlls)
+	file(REMOVE \${ffmpeg_dlls})
+endif()")
 		else()
 			message(WARNING "windeployqt not found - installed package will lack the Qt runtime")
 		endif()
