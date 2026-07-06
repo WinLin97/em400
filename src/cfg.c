@@ -18,8 +18,33 @@
 #define MAX_KEY_LEN 128
 
 #include <stdarg.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "cfg.h"
+
+// -----------------------------------------------------------------------
+const char * cfg_default_log_file()
+{
+#ifdef _WIN32
+	// CWD-relative em400.log would land in the install dir (Program Files,
+	// not user-writable), so default next to the config in %APPDATA%
+	static char *path;
+	if (!path) {
+		const char *appdata = getenv("APPDATA");
+		if (appdata && *appdata) {
+			size_t len = strlen(appdata) + strlen("\\em400\\" CFG_DEFAULT_LOG_FILE) + 1;
+			path = (char *) malloc(len);
+			if (path) {
+				snprintf(path, len, "%s\\em400\\%s", appdata, CFG_DEFAULT_LOG_FILE);
+			}
+		}
+	}
+	return path ? path : CFG_DEFAULT_LOG_FILE;
+#else
+	return CFG_DEFAULT_LOG_FILE;
+#endif
+}
 
 // -----------------------------------------------------------------------
 const char * cfg_fgetstr(em400_cfg *cfg, const char *key_format, ...)

@@ -552,7 +552,7 @@ static void build_host(em400_cfg *cfg)
 	appcfg.log = (struct appcfg_log) {
 		.enabled = cfg_getbool(cfg, "log:enabled", CFG_DEFAULT_LOG_ENABLED),
 		.components = dup_str(cfg_getstr(cfg, "log:components", CFG_DEFAULT_LOG_COMPONENTS)),
-		.file = dup_str(cfg_getstr(cfg, "log:file", CFG_DEFAULT_LOG_FILE)),
+		.file = dup_str(cfg_getstr(cfg, "log:file", cfg_default_log_file())),
 		.line_buffered = cfg_getbool(cfg, "log:line_buffered", CFG_DEFAULT_LOG_LINE_BUFFERED),
 	};
 

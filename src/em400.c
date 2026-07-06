@@ -39,7 +39,7 @@ static void em400_msg_to_ui(em400_sev_t sev, const char *text)
 // -----------------------------------------------------------------------
 static int em400_top_init(em400_cfg *cfg, const char *machine_id)
 {
-	const char *log_file_name = cfg_getstr(cfg, "log:file", CFG_DEFAULT_LOG_FILE);
+	const char *log_file_name = cfg_getstr(cfg, "log:file", cfg_default_log_file());
 	em400_log_buf_type_t log_buf_type =
 		cfg_getbool(cfg, "log:line_buffered", CFG_DEFAULT_LOG_LINE_BUFFERED)
 		? EM400_LOG_LINE_BUFFERED

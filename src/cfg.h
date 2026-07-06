@@ -59,6 +59,10 @@ typedef dictionary em400_cfg;
 #define cfg_load iniparser_load
 #define cfg_free iniparser_freedict
 
+// CFG_DEFAULT_LOG_FILE resolved to a usable path: bare name (CWD) on POSIX,
+// %APPDATA%\em400\em400.log on Windows
+const char * cfg_default_log_file();
+
 const char * cfg_fgetstr(em400_cfg *cfg, const char *key_format, ...);
 int cfg_fgetint(em400_cfg *cfg, const char *key_format, ...);
 double cfg_fgetdouble(em400_cfg *cfg, const char *key_format, ...);
