@@ -94,6 +94,7 @@ jobs:
             mingw-w64-x86_64-qt6-multimedia-wmf
             mingw-w64-x86_64-qt6-tools
             mingw-w64-x86_64-nsis
+            python
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # so `git describe --tags` resolves the installer version
@@ -103,6 +104,8 @@ jobs:
         run: git clone https://github.com/jakubfi/emcrk && cmake -S emcrk -B emcrk/build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}} && cmake --build emcrk/build && cmake --install emcrk/build
       - name: Build and install emdas
         run: git clone https://github.com/jakubfi/emdas && cmake -S emdas -B emdas/build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}} && cmake --build emdas/build && cmake --install emdas/build
+      - name: Build and install emas
+        run: git clone https://github.com/jakubfi/emas && cmake -S emas -B emas/build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}} && cmake --build emas/build && cmake --install emas/build
       - name: Configure project
         run: cmake -S . -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}}
       - name: Build
@@ -120,6 +123,12 @@ jobs:
             echo "booting machine: $m"
             echo quit | timeout 60 ./build/em400 -u cmd -m "$m" || { echo "machine $m failed to run"; exit 1; }
           done
+      - name: Prepare test disk images
+        run: cd tests/images && make
+      - name: Run tests (speed max)
+        run: cd tests && ./runtests.py
+      - name: Run tests (timing all)
+        run: cd tests && ./runtests.py -O general:timing=all
       - name: Build installer
         run: cd build && cpack
       - name: Upload installer
