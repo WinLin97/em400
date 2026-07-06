@@ -1,0 +1,23 @@
+1 ICON "@EM400_ICO@"
+
+1 VERSIONINFO
+FILEVERSION @APP_VERSION_MAJOR@,@APP_VERSION_MINOR@,@APP_VERSION_PATCH@,0
+PRODUCTVERSION @APP_VERSION_MAJOR@,@APP_VERSION_MINOR@,@APP_VERSION_PATCH@,0
+BEGIN
+	BLOCK "StringFileInfo"
+	BEGIN
+		BLOCK "040904E4"
+		BEGIN
+			VALUE "ProductName", "EM400"
+			VALUE "FileDescription", "MERA-400 emulator"
+			VALUE "FileVersion", "@APP_VERSION@"
+			VALUE "ProductVersion", "@APP_VERSION@"
+			VALUE "LegalCopyright", "(c) Jakub Filipowicz, GPL-2.0"
+			VALUE "OriginalFilename", "em400.exe"
+		END
+	END
+	BLOCK "VarFileInfo"
+	BEGIN
+		VALUE "Translation", 0x409, 1252
+	END
+END

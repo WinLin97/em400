@@ -1,0 +1,66 @@
+# Runs at install/cpack-staging time on Windows (configured by CMake).
+# Stages license texts for everything the package ships: em400 itself, the
+# vendored sources, and every bundled DLL - each DLL is mapped back to its
+# owning MSYS2 package, whose license texts live in <prefix>/share/licenses.
+
+set(LICDIR "${CMAKE_INSTALL_PREFIX}/licenses")
+file(MAKE_DIRECTORY "${LICDIR}")
+
+file(COPY_FILE "@CMAKE_SOURCE_DIR@/COPYING" "${LICDIR}/em400-COPYING.txt")
+file(COPY_FILE "@CMAKE_SOURCE_DIR@/src/external/iniparser/LICENSE" "${LICDIR}/iniparser-LICENSE.txt")
+file(COPY_FILE "@CMAKE_SOURCE_DIR@/packaging/windows/miniaudio-LICENSE.txt" "${LICDIR}/miniaudio-LICENSE.txt")
+file(COPY_FILE "@CMAKE_SOURCE_DIR@/packaging/windows/THIRD-PARTY.txt" "${LICDIR}/THIRD-PARTY.txt")
+
+set(prefix "$ENV{MSYSTEM_PREFIX}")
+find_program(PACMAN_EXECUTABLE pacman)
+if((prefix STREQUAL "") OR (NOT PACMAN_EXECUTABLE))
+	message(WARNING "not an MSYS2 environment - DLL license texts not collected")
+	return()
+endif()
+
+set(bindir "${CMAKE_INSTALL_PREFIX}/@CMAKE_INSTALL_BINDIR@")
+file(GLOB_RECURSE staged_dlls "${bindir}/*.dll")
+set(seen_pkgs "")
+set(unmatched "")
+foreach(dll IN LISTS staged_dlls)
+	file(RELATIVE_PATH rel "${bindir}" "${dll}")
+	get_filename_component(dll_name "${dll}" NAME)
+	# top-level DLLs come from <prefix>/bin, windeployqt-staged plugins from
+	# the Qt plugin dir (rel keeps the <type>/<name>.dll layout)
+	set(origin "")
+	foreach(cand "${prefix}/bin/${dll_name}" "${prefix}/share/qt6/plugins/${rel}")
+		if(EXISTS "${cand}")
+			set(origin "${cand}")
+			break()
+		endif()
+	endforeach()
+	if(origin STREQUAL "")
+		list(APPEND unmatched "${rel}")
+		continue()
+	endif()
+	execute_process(COMMAND "${PACMAN_EXECUTABLE}" -Qqo "${origin}"
+		OUTPUT_VARIABLE pkg RESULT_VARIABLE ret
+		OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+	if((NOT ret EQUAL 0) OR (pkg STREQUAL ""))
+		list(APPEND unmatched "${rel}")
+		continue()
+	endif()
+	if(pkg IN_LIST seen_pkgs)
+		continue()
+	endif()
+	list(APPEND seen_pkgs "${pkg}")
+	string(REGEX REPLACE "^mingw-w64-(ucrt-|clang-)?(x86_64|i686|aarch64)-" "" realname "${pkg}")
+	if(IS_DIRECTORY "${prefix}/share/licenses/${realname}")
+		file(COPY "${prefix}/share/licenses/${realname}" DESTINATION "${LICDIR}")
+	elseif(IS_DIRECTORY "${prefix}/share/licenses/${pkg}")
+		file(COPY "${prefix}/share/licenses/${pkg}" DESTINATION "${LICDIR}")
+	else()
+		message(WARNING "no license texts found for MSYS2 package ${pkg}")
+	endif()
+endforeach()
+
+list(LENGTH seen_pkgs npkgs)
+message(STATUS "collected license texts for ${npkgs} MSYS2 packages")
+if(unmatched)
+	message(STATUS "DLLs not from MSYS2 packages (covered by THIRD-PARTY.txt): ${unmatched}")
+endif()

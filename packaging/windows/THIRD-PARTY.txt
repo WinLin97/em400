@@ -1,0 +1,29 @@
+EM400 for Windows - third-party components
+==========================================
+
+This package bundles the components listed below. License texts live in this
+directory; components that come from MSYS2 packages have their texts in the
+subdirectory named after the package (collected at packaging time).
+
+Compiled into em400.exe:
+
+- miniaudio (audio output) - public domain / MIT No Attribution,
+  see miniaudio-LICENSE.txt
+- iniparser (config parsing) - MIT, see iniparser-LICENSE.txt
+
+Bundled DLLs:
+
+- Qt 6 (Widgets, Multimedia and their dependencies) - LGPL-3.0.
+  Qt is linked dynamically; you can relink em400 against a modified Qt
+  by replacing the Qt6*.dll files and plugin DLLs.
+  Sources: https://www.qt.io/download-open-source
+- libuv - MIT
+- mingw-w64 / GCC runtime (libgcc, libstdc++, libwinpthread) - see the
+  gcc-libs and related license subdirectories
+- libemawp, libemcrk, libemdas - GPL-2.0, by the em400 author:
+  https://github.com/jakubfi/emawp
+  https://github.com/jakubfi/emcrk
+  https://github.com/jakubfi/emdas
+
+em400 itself is licensed under GPL-2.0 (em400-COPYING.txt).
+Full corresponding source: https://github.com/jakubfi/em400

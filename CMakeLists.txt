@@ -193,6 +193,10 @@ set(SOURCES_EM400
 if(WIN32)
 	list(APPEND SOURCES_EM400 src/utils/compat_time.h)
 	list(APPEND SOURCES_EM400 src/utils/compat_time.c)
+	enable_language(RC)
+	set(EM400_ICO ${CMAKE_SOURCE_DIR}/packaging/windows/em400.ico)
+	configure_file(packaging/windows/em400.rc.in ${CMAKE_BINARY_DIR}/em400.rc @ONLY)
+	list(APPEND SOURCES_EM400 ${CMAKE_BINARY_DIR}/em400.rc)
 endif()
 
 if (UI_QT)
@@ -346,6 +350,8 @@ target_link_libraries(em400
 
 if(WIN32)
 	target_link_libraries(em400 ws2_32 winmm)
+	# windows GUI: no console window behind the Qt UI
+	set_property(TARGET em400 PROPERTY WIN32_EXECUTABLE ON)
 else()
 	target_link_libraries(em400
 		${RT_LIBRARY}
@@ -361,7 +367,12 @@ if(NOT WIN32 AND DL_LIBRARY)
 	target_link_libraries(em400 ${DL_LIBRARY})
 endif()
 
-install(TARGETS em400
+# collects each exe's DLL dependencies for the Windows package
+if(WIN32)
+	set(DEP_SET RUNTIME_DEPENDENCY_SET em400-deps)
+endif()
+
+install(TARGETS em400 ${DEP_SET}
 	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
@@ -378,7 +389,7 @@ set_property(TARGET emitool PROPERTY C_STANDARD 23)
 target_include_directories(emitool PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_compile_options(emitool PUBLIC -Wall)
 
-install(TARGETS emitool
+install(TARGETS emitool ${DEP_SET}
 	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
@@ -397,7 +408,7 @@ set_property(TARGET embin PROPERTY C_STANDARD 23)
 target_include_directories(embin PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_compile_options(embin PUBLIC -Wall)
 
-install(TARGETS embin
+install(TARGETS embin ${DEP_SET}
 	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
@@ -411,6 +422,56 @@ if(NOT WIN32)
 	install(TARGETS emterm
 		RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 	)
+endif()
+
+# ---- Packaging: Windows installer (CPack/NSIS) ---------------------------
+
+if(WIN32)
+	get_filename_component(MINGW_BINDIR ${CMAKE_C_COMPILER} DIRECTORY)
+	install(RUNTIME_DEPENDENCY_SET em400-deps
+		PRE_EXCLUDE_REGEXES "api-ms-" "ext-ms-" "hvsifiletrust" "pdmutilities"
+		POST_EXCLUDE_REGEXES ".*system32/.*\\.dll"
+		DIRECTORIES ${MINGW_BINDIR}
+		RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+	)
+
+	if(UI_QT)
+		find_program(WINDEPLOYQT_EXECUTABLE NAMES windeployqt-qt6 windeployqt)
+		if(WINDEPLOYQT_EXECUTABLE)
+			install(CODE "execute_process(COMMAND \"${WINDEPLOYQT_EXECUTABLE}\" --release --no-translations \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/em400.exe\" COMMAND_ERROR_IS_FATAL ANY)")
+		else()
+			message(WARNING "windeployqt not found - installed package will lack the Qt runtime")
+		endif()
+	endif()
+
+	# must stay the last install rule: it scans the fully staged bin dir
+	configure_file(packaging/windows/licenses.cmake.in ${CMAKE_BINARY_DIR}/licenses.cmake @ONLY)
+	install(SCRIPT ${CMAKE_BINARY_DIR}/licenses.cmake)
+
+	set(CPACK_GENERATOR "NSIS")
+	set(CPACK_PACKAGE_NAME "em400")
+	set(CPACK_PACKAGE_VENDOR "mera400.pl")
+	set(CPACK_PACKAGE_HOMEPAGE_URL "http://mera400.pl")
+	set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${PROJECT_DESCRIPTION}")
+	set(CPACK_PACKAGE_VERSION "${APP_VERSION}")
+	set(CPACK_PACKAGE_VERSION_MAJOR ${APP_VERSION_MAJOR})
+	set(CPACK_PACKAGE_VERSION_MINOR ${APP_VERSION_MINOR})
+	set(CPACK_PACKAGE_VERSION_PATCH ${APP_VERSION_PATCH})
+	set(CPACK_PACKAGE_INSTALL_DIRECTORY "em400")
+	set(CPACK_PACKAGE_FILE_NAME "em400-${APP_VERSION}-win64")
+	set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/COPYING")
+	set(CPACK_PACKAGE_EXECUTABLES "em400" "EM400")
+	set(CPACK_CREATE_DESKTOP_LINKS "em400")
+	set(CPACK_NSIS_DISPLAY_NAME "EM400 - MERA-400 emulator")
+	set(CPACK_NSIS_PACKAGE_NAME "EM400")
+	set(CPACK_NSIS_URL_INFO_ABOUT "http://mera400.pl")
+	set(CPACK_NSIS_MUI_ICON "${EM400_ICO}")
+	set(CPACK_NSIS_MUI_UNIICON "${EM400_ICO}")
+	set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\em400.exe")
+	set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
+	set(CPACK_NSIS_MODIFY_PATH ON)
+	set(CPACK_NSIS_MANIFEST_DPI_AWARE ON)
+	include(CPack)
 endif()
 
 # vim: tabstop=4
