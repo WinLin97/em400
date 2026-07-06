@@ -22,6 +22,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
 #include <string.h>
 #include <strings.h>
 #include <stdarg.h>
@@ -142,11 +143,11 @@ int log_enable()
 	// Open log file
 	log_file = fopen(log_file_name, "a");
 	if (!log_file) {
-		return LOGERR("Failed to open log file \"%s\" for appending", log_file);
+		return LOGERR("Failed to open log file \"%s\" for appending: %s", log_file_name, strerror(errno));
 	}
 	if (log_buf_type == EM400_LOG_LINE_BUFFERED) {
 		if (setvbuf(log_file, NULL, _IOLBF, BUFSIZ)) {
-			return LOGERR("Cannot set line buffering for log file \"%s\"", log_file);
+			return LOGERR("Cannot set line buffering for log file \"%s\"", log_file_name);
 		}
 	}
 
