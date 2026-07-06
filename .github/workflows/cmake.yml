@@ -23,7 +23,7 @@ jobs:
       CXX: ${{matrix.compiler.CXX}}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Update repositories
         run: sudo apt-get update
       - name: Build and install emawp
@@ -93,7 +93,7 @@ jobs:
             mingw-w64-x86_64-qt6-multimedia
             mingw-w64-x86_64-qt6-tools
             mingw-w64-x86_64-nsis
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # so `git describe --tags` resolves the installer version
       - name: Build and install emawp
@@ -122,7 +122,7 @@ jobs:
       - name: Build installer
         run: cd build && cpack
       - name: Upload installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: em400-windows-installer
           path: build/em400-*-win64.exe

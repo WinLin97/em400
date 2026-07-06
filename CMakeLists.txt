@@ -4,6 +4,12 @@ project(em400
 	LANGUAGES C CXX
 )
 
+# silence the per-DLL dev warning file(GET_RUNTIME_DEPENDENCIES) emits about
+# normalizing '\' to '/' in resolved paths before matching exclude regexes
+if(POLICY CMP0207)
+	cmake_policy(SET CMP0207 NEW)
+endif()
+
 include(GNUInstallDirs)
 include(cmake/appversion.cmake)
 

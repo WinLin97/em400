@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0     # so `git describe --tags` resolves the version
 
@@ -69,7 +69,7 @@ jobs:
         run: bash packaging/build-appimage.sh
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: em400-appimage
           path: dist/em400-*.AppImage
