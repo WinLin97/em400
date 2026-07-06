@@ -28,6 +28,7 @@
 #include "cpu/clock.h"
 #include "cpu/interrupts.h"
 #include "cp/cp.h"
+#include "utils/compat_time.h"
 
 #include "log.h"
 
@@ -44,15 +45,29 @@ static void * clock_thread(void *ptr)
 	struct timespec ts;
 	unsigned clock_tick_nsec = clock_period * 1000000;
 	unsigned new_nsec;
-	clock_gettime(CLOCK_REALTIME , &ts);
+#ifdef _WIN32
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+#else
+	clock_gettime(CLOCK_REALTIME, &ts);
+#endif
 
 	while (1) {
 		new_nsec = ts.tv_nsec + clock_tick_nsec;
 		ts.tv_sec += new_nsec / 1000000000L;
 		ts.tv_nsec = new_nsec % 1000000000L;
+#ifdef _WIN32
+		// winpthreads sem_timedwait only resolves to the scheduler tick, which
+		// makes the deadline slip and fire INT_CLOCK in catch-up bursts. Sleep
+		// on the high-res waitable timer instead and poll quit non-blocking.
+		compat_sleep_until(&ts);
+		if (!sem_trywait(&clock_quit)) {
+			break;
+		}
+#else
 		if (!sem_timedwait(&clock_quit, &ts)) {
 			break;
 		}
+#endif
 		if (cp_clock_get()) {
 			int_set(atomic_load_explicit(&clock_int, memory_order_relaxed));
 		}
