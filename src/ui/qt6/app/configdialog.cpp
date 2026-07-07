@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include <QApplication>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -250,6 +251,31 @@ QWidget *ConfigDialog::build_general_page()
 	QFormLayout *ui_form = new QFormLayout(ui_box);
 	ui_form->setVerticalSpacing(10);
 	ui_form->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+
+	// language names stay untranslated on purpose: each must be readable to a
+	// user stuck in the other language
+	QComboBox *language = new QComboBox();
+	language->addItem(tr("System default"), QString());
+	language->addItem(QStringLiteral("English"), QStringLiteral("en"));
+	language->addItem(QStringLiteral("Polski"), QStringLiteral("pl"));
+	int lang_idx = language->findData(QSettings().value("ui/language").toString());
+	language->setCurrentIndex(lang_idx >= 0 ? lang_idx : 0);
+	QLabel *language_note = new QLabel(tr("Takes effect after EM400 is restarted."));
+	auto lang_pending = [language]() {
+		return language->currentData().toString() != qApp->property("startupLanguage").toString();
+	};
+	language_note->setVisible(lang_pending());
+	connect(language, &QComboBox::currentIndexChanged, this, [language, language_note, lang_pending]() {
+		QSettings().setValue("ui/language", language->currentData().toString());
+		language_note->setVisible(lang_pending());
+	});
+	gate(language, "live");
+	QHBoxLayout *language_row = new QHBoxLayout();
+	language_row->addWidget(language);
+	language_row->addSpacing(12);
+	language_row->addWidget(language_note);
+	language_row->addStretch(1);
+	ui_form->addRow(tr("Language:"), language_row);
 
 	QCheckBox *powered = new QCheckBox(tr("Start with the machine powered on"));
 	powered->setToolTip(tr("When off, the graphical UI starts with the machine powered down - turn the ignition key to power it on."));

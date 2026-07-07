@@ -194,6 +194,18 @@
         <translation>Interfejs użytkownika</translation>
     </message>
     <message>
+        <source>System default</source>
+        <translation>Ustawienie systemowe</translation>
+    </message>
+    <message>
+        <source>Takes effect after EM400 is restarted.</source>
+        <translation>Zadziała po ponownym uruchomieniu EM400.</translation>
+    </message>
+    <message>
+        <source>Language:</source>
+        <translation>Język:</translation>
+    </message>
+    <message>
         <source>Start with the machine powered on</source>
         <translation>Uruchom z włączoną maszyną</translation>
     </message>

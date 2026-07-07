@@ -51,13 +51,17 @@ void * ui_qt6_setup(const char *call_name)
 	QApplication::setOrganizationName(ORG_NAME);
 	QApplication::setApplicationName(APP_NAME);
 
+	QSettings settings;
+
+	// empty = follow the system locale; "en" loads no catalog (source language)
+	QString lang = settings.value("ui/language").toString();
+	ui->app->setProperty("startupLanguage", lang);
 	QTranslator *translator = new QTranslator(ui->app);
-	if (translator->load(QLocale::system(), "em400-qt", "_", ":/i18n")) {
+	if (translator->load(lang.isEmpty() ? QLocale::system() : QLocale(lang), "em400-qt", "_", ":/i18n")) {
 		ui->app->installTranslator(translator);
 	}
 
 	// default custom dark theme
-	QSettings settings;
 	em400_apply_theme(settings.value("ui/panelTheme", true).toBool());
 
 	return ui;
