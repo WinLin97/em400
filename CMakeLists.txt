@@ -373,9 +373,9 @@ if(NOT WIN32 AND DL_LIBRARY)
 	target_link_libraries(em400 ${DL_LIBRARY})
 endif()
 
-# Off by default so a plain `install` stays lightweight (as on Linux). The CI
-# installer build turns it on to vendor dependency DLLs and produce the NSIS
-# package; a bare install into a mingw prefix resolves those DLLs via PATH.
+# Off by default so a plain `install` stays lightweight (as on Linux). The
+# Windows Installer workflow turns it on to vendor dependency DLLs and produce
+# the NSIS package; a bare install into a mingw prefix resolves those DLLs via PATH.
 option(EM400_BUILD_INSTALLER "Build the self-contained Windows installer" OFF)
 
 # collects each exe's DLL dependencies for the Windows package

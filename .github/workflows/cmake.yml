@@ -3,7 +3,6 @@ name: CI
 on:
   push:
     branches: [master, em400-next]
-    tags: ['release-*']   # tagged release -> attach the Windows installer
   pull_request:
     branches: [master]
 
@@ -93,11 +92,10 @@ jobs:
             mingw-w64-x86_64-qt6-multimedia
             mingw-w64-x86_64-qt6-multimedia-wmf
             mingw-w64-x86_64-qt6-tools
-            mingw-w64-x86_64-nsis
             python
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0   # so `git describe --tags` resolves the installer version
+          fetch-depth: 0   # so `git describe --tags` resolves the version
       - name: Build and install emawp
         run: git clone https://github.com/jakubfi/emawp && cmake -S emawp -B emawp/build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}} && cmake --build emawp/build && cmake --install emawp/build
       - name: Build and install emcrk
@@ -129,22 +127,3 @@ jobs:
         run: cd tests && ./runtests.py
       - name: Run tests (timing all)
         run: cd tests && ./runtests.py -O general:timing=all
-      - name: Install (plain, no dependency bundling)
-        run: |
-          cmake --install build --prefix "$(cygpath -w "$PWD/stage")"
-          test -f stage/bin/em400.exe || { echo "em400.exe was not installed"; exit 1; }
-      - name: Configure installer build
-        run: cmake -S . -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}} -DEM400_BUILD_INSTALLER=ON
-      - name: Build installer
-        run: cd build && cpack
-      - name: Upload installer
-        uses: actions/upload-artifact@v7
-        with:
-          name: em400-windows-installer
-          path: build/em400-*-win64.exe
-          if-no-files-found: error
-      - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/release-')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: build/em400-*-win64.exe
