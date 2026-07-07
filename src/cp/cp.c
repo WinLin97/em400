@@ -30,8 +30,10 @@
 #include "log.h"
 
 static atomic_bool start_switch;
+static atomic_bool lock_switch;
 static atomic_int reg_select_switch;
 static atomic_bool clock_switch;
+static atomic_bool clock_latch;
 static atomic_uint kb_switch;
 
 // -----------------------------------------------------------------------
@@ -56,10 +58,36 @@ uint16_t cp_kb_get()
 }
 
 // -----------------------------------------------------------------------
+bool cp_lock_get()
+{
+	return atomic_load_explicit(&lock_switch, memory_order_relaxed);
+}
+
+// -----------------------------------------------------------------------
+void cp_lock_set(bool state)
+{
+	if (cpu_state_get() == EM400_STATE_OFF) return;
+	if (state == cp_lock_get()) return;
+	LOG(L_CPU, "Panel lock: %s", state ? "ON" : "OFF");
+	atomic_store_explicit(&lock_switch, state, memory_order_relaxed);
+	if (!state) {
+		// the CLOCK latch follows its switch again
+		bool clock = atomic_load_explicit(&clock_switch, memory_order_relaxed);
+		atomic_store_explicit(&clock_latch, clock, memory_order_relaxed);
+		// only the stop edge applies at unlock: START moved to STOP stops
+		// the machine, moved to START it starts nothing
+		if (!atomic_load_explicit(&start_switch, memory_order_relaxed)) {
+			cpu_state_change(EM400_STATE_STOP, EM400_STATE_ANY);
+		}
+	}
+}
+
+// -----------------------------------------------------------------------
 void cp_start(bool state)
 {
 	atomic_store_explicit(&start_switch, state, memory_order_relaxed);
 	if (cpu_state_get() == EM400_STATE_OFF) return;
+	if (cp_lock_get()) return;
 	if (state) {
 		cpu_state_change(EM400_STATE_RUN, EM400_STATE_STOP);
 	} else {
@@ -76,6 +104,7 @@ bool cp_start_get()
 // -----------------------------------------------------------------------
 void cp_cycle()
 {
+	if (cp_lock_get()) return;
 	cpu_state_change(EM400_STATE_CYCLE, EM400_STATE_STOP);
 }
 
@@ -84,12 +113,15 @@ void cp_clock_set(int state)
 {
 	LOG(L_CPU, "Set cpu timer (clock) state: %s", state ? "ON" : "OFF");
 	atomic_store_explicit(&clock_switch, state, memory_order_relaxed);
+	if (!cp_lock_get()) {
+		atomic_store_explicit(&clock_latch, state, memory_order_relaxed);
+	}
 }
 
 // -----------------------------------------------------------------------
 int cp_clock_get()
 {
-	bool on = atomic_load_explicit(&clock_switch, memory_order_relaxed);
+	bool on = atomic_load_explicit(&clock_latch, memory_order_relaxed);
 	return on && (cpu_state_get() != EM400_STATE_OFF);
 }
 
@@ -97,12 +129,14 @@ int cp_clock_get()
 void cp_clear()
 {
 	if (cpu_state_get() == EM400_STATE_OFF) return;
+	if (cp_lock_get()) return;
 	cpu_state_change(EM400_STATE_CLO, EM400_STATE_ANY);
 }
 
 // -----------------------------------------------------------------------
 void cp_bin()
 {
+	if (cp_lock_get()) return;
 	cpu_state_change(EM400_STATE_BIN, EM400_STATE_STOP);
 }
 
@@ -180,18 +214,21 @@ bool cp_q_get()
 // -----------------------------------------------------------------------
 void cp_load()
 {
+	if (cp_lock_get()) return;
 	cpu_state_change(EM400_STATE_LOAD, EM400_STATE_STOP);
 }
 
 // -----------------------------------------------------------------------
 void cp_fetch()
 {
+	if (cp_lock_get()) return;
 	cpu_state_change(EM400_STATE_FETCH, EM400_STATE_STOP);
 }
 
 // -----------------------------------------------------------------------
 void cp_store()
 {
+	if (cp_lock_get()) return;
 	cpu_state_change(EM400_STATE_STORE, EM400_STATE_STOP);
 }
 

@@ -206,6 +206,7 @@ void em400_shutdown()
 		return;
 	}
 	LOG(L_LIB, "Shutting down EM400 instance");
+	cp_lock_set(false);
 #ifdef _WIN32
 	timeEndPeriod(1);
 #endif
@@ -494,6 +495,12 @@ void em400_cp_clock(int state)
 void em400_cp_oprq()
 {
 	cp_oprq();
+}
+
+// -----------------------------------------------------------------------
+void em400_cp_lock(bool state)
+{
+	cp_lock_set(state);
 }
 
 // -----------------------------------------------------------------------

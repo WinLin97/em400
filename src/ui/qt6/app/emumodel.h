@@ -121,6 +121,7 @@ public slots:
 	// em400_shutdown(), then blank the views so the panel reads as dead
 	void slot_power(bool on);
 
+	void slot_lock(bool state) { em400_cp_lock(state); }
 	void slot_cpu_start(bool state) { em400_cp_start(state); }
 	void slot_clear() { em400_cp_clear(); }
 	void slot_cycle() { em400_cp_cycle(); }

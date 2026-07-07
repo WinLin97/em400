@@ -273,6 +273,10 @@ void em400_cp_clear();
 void em400_cp_clock(int state);
 void em400_cp_oprq();
 
+// ignition key lock
+
+void em400_cp_lock(bool state);
+
 // rotary
 
 void em400_cp_reg_select(int reg_id);

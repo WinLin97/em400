@@ -149,8 +149,6 @@ ControlPanel::ControlPanel(QWidget *parent):
 	}
 	ignition = new Ignition(gfx, ignition_sounds_r, ignition_sounds_l, this);
 
-	connect(ignition, &Ignition::signal_locked, this, &ControlPanel::slot_set_locked);
-
 	// Route the control switches out through the panel's own named signals so
 	// callers talk to the panel's vocabulary instead of reaching into sw[].
 	connect(sw[SW_START], &Switch::signal_toggled, this, &ControlPanel::signal_start_toggled);
@@ -170,15 +168,6 @@ ControlPanel::ControlPanel(QWidget *parent):
 
 	change_dimensions(plane[0].rect());
 	set_volume(100);
-}
-
-// -----------------------------------------------------------------------
-void ControlPanel::slot_set_locked(bool locked)
-{
-	for (int i=0 ; i<SW_CNT ; i++) {
-		sw[i]->set_locked(locked);
-	}
-	keys->set_locked(locked);
 }
 
 // -----------------------------------------------------------------------

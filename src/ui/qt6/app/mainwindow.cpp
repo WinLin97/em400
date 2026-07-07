@@ -227,9 +227,8 @@ void MainWindow::wire_connections()
 	connect(&e, &EmuModel::signal_power_changed, ui->cp, &ControlPanel::slot_set_powered);
 
 	// ControlPanel -> EmuModel
-	// the ignition's power signal drives the machine lifecycle (the lock signal
-	// is panel-internal, handled in ControlPanel itself)
 	connect(ui->cp->ignition, &Ignition::signal_power, &e, &EmuModel::slot_power);
+	connect(ui->cp->ignition, &Ignition::signal_locked, &e, &EmuModel::slot_lock);
 	connect(&e, &EmuModel::signal_power_changed, this, &MainWindow::update_window_title);
 	connect(&e, &EmuModel::signal_power_changed, this, &MainWindow::update_docks_enabled);
 	connect(&e, &EmuModel::signal_power_on_failed, ui->cp->ignition, &Ignition::snap_off);

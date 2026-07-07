@@ -61,7 +61,6 @@ public slots:
 	void slot_set_clock(bool state);
 	void slot_set_mode(bool state);
 	void slot_set_stopn(bool state);
-	void slot_set_locked(bool locked);
 
 signals:
 	void signal_start_toggled(bool state);

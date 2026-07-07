@@ -46,6 +46,10 @@ void Ignition::set_volume(qreal linear_volume)
 void Ignition::power_on()
 {
 	emit signal_power(true);
+	// a direct OFF->LOCK turn reaches LOCK before this delayed power-on, so
+	// its signal_locked(true) hit a still-off machine; repeat it now (position
+	// is back at 0 by here if the power-on failed)
+	if (position == 2) emit signal_locked(true);
 }
 
 // -----------------------------------------------------------------------
