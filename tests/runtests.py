@@ -36,8 +36,9 @@ R_UNK = 2
 class EM400:
 
     # --------------------------------------------------------------------
-    def __init__(self, binary, add_args, polldelay=0.01):
+    def __init__(self, binary, add_args, polldelay=0.01, timeout=5):
         self.polldelay = polldelay
+        self.timeout = timeout
 
         args = [ binary, "-u", "cmd" ] + add_args
         self.p = subprocess.Popen(args, shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=1, universal_newlines=True)
@@ -45,6 +46,11 @@ class EM400:
     # --------------------------------------------------------------------
     def close(self):
         self.quit()
+        self.p.wait()
+
+    # --------------------------------------------------------------------
+    def kill(self):
+        self.p.kill()
         self.p.wait()
 
     # --------------------------------------------------------------------
@@ -67,7 +73,7 @@ class EM400:
             ret = R_ERR
 
         if ret != R_OK:
-            raise SystemError(re.sub("[A-Za-a]+: ", "", resp))
+            raise RuntimeError(re.sub("[A-Za-z]+: ", "", resp))
         else:
             return resp.split()[1:]
 
@@ -97,27 +103,39 @@ class EM400:
 
     # --------------------------------------------------------------------
     def wait_for_finish(self):
+        hung_since = None
         while True:
+            hung = False
             s = self.state()
+            if s == "STOP":
+                break
             if s == "WAIT":
                 ir = self.reg("ir")
-                if (ir & 0b1111110111000000) == 0b1110110000000000 and (ir & 0b0000000000111111) >= 0o40:
-                    if self.ips() == 0:
+                if self.ips() == 0:
+                    # HLT with an argument >= 0o40 means "test finished"
+                    if (ir & 0b1111110111000000) == 0b1110110000000000 and (ir & 0b0000000000111111) >= 0o40:
                         break
-            elif s == "STOP":
-                break
+                    hung = True
+            if not hung:
+                hung_since = None
+            elif hung_since is None:
+                hung_since = time.monotonic()
+            elif time.monotonic() - hung_since >= self.timeout:
+                raise TimeoutError("halted with no activity for %gs" % self.timeout)
             if self.polldelay:
                 time.sleep(self.polldelay)
 
     # --------------------------------------------------------------------
     def wait_for_stop(self):
+        deadline = time.monotonic() + self.timeout
         while True:
             state = self.state()
-            if state != "STOP":
-                if self.polldelay:
-                    time.sleep(self.polldelay)
-            else:
+            if state == "STOP":
                 break
+            if time.monotonic() >= deadline:
+                raise TimeoutError("no stop within %gs" % self.timeout)
+            if self.polldelay:
+                time.sleep(self.polldelay)
 
     # --------------------------------------------------------------------
     def clear(self):
@@ -141,10 +159,12 @@ class EM400:
 # ------------------------------------------------------------------------
 class TestResult:
 
+    PASS, FAIL, ERROR, TIMEOUT, BENCH = range(5)
+
     # --------------------------------------------------------------------
     def __init__(self, name):
-        self.name = None
-        self.passed = None
+        self.name = name
+        self.status = None
         self.checks = []
         self.error = None
         self.ips = None
@@ -152,47 +172,52 @@ class TestResult:
         self.failcmds = []
 
     # --------------------------------------------------------------------
-    def add_check(self, t, x, r):
-        self.checks += [(t, x, r)]
-        if self.passed is None:
-            self.passed = (x == r)
-        else:
-            self.passed &= (x == r)
+    def failed(self):
+        return self.status not in (self.PASS, self.BENCH)
+
+    # --------------------------------------------------------------------
+    def add_check(self, expr, expected, got):
+        self.checks += [(expr, expected, got)]
+        if expected != got:
+            self.status = self.FAIL
+        elif self.status is None:
+            self.status = self.PASS
 
     # --------------------------------------------------------------------
     def __str__(self):
-        # error
-        if self.error:
-            return "%-60s %s" % (t, self.error)
+        if self.status == self.ERROR:
+            return "%-60s %s" % (self.name, self.error)
 
-        # benchmark
-        if self.ips:
+        if self.status == self.TIMEOUT:
+            return "%-60s \033[91mTIMEOUT\033[0m %s" % (self.name, self.error)
+
+        if self.status == self.BENCH:
             if self.ips_percent:
                 pc = "(%+.1f%%)" % self.ips_percent
             else:
                 pc = ""
-            return "%-60s %7.3f %s" % (t, self.ips, pc)
+            return "%-60s %7.3f %s" % (self.name, self.ips, pc)
 
-        # pass/fail test
-        if self.passed is not None:
-            pf = [ "\033[91mFAILED\033[0m", "\033[92mPASSED\033[0m" ]
-            ret = "%-60s %s" % (t, pf[self.passed])
-            for f in self.checks:
-                if f[1] != f[2]:
-                    ret += " %s=%i!=%i" % (f[0], f[2], f[1])
+        if self.status in (self.PASS, self.FAIL):
+            pf = { self.FAIL: "\033[91mFAILED\033[0m", self.PASS: "\033[92mPASSED\033[0m" }
+            ret = "%-60s %s" % (self.name, pf[self.status])
+            for expr, expected, got in self.checks:
+                if expected != got:
+                    ret += " %s=%i!=%i" % (expr, got, expected)
             return ret
 
-        return "no result"
+        return "%-60s no result" % self.name
 
 # ------------------------------------------------------------------------
 class TestBed:
 
     # --------------------------------------------------------------------
-    def __init__(self, emas, binary, blfile, benchmark_duration=0.5, failcmd=None, log="", options=[]):
+    def __init__(self, emas, binary, blfile, benchmark_duration=0.5, failcmd=None, log="", options=None, timeout=5):
         self.emas = emas
         self.binary = binary
         self.failcmd = failcmd
         self.benchmark_duration = benchmark_duration
+        self.timeout = timeout
         self.e = None
         self.add_opts = None
         self.default_config = "configs/minimal.ini"
@@ -216,17 +241,23 @@ class TestBed:
         if self.e is None:
             if DEBUG:
                 print("Spawning fresh EM400: %s %s" % (self.binary, " ".join(add_opts)))
-            self.e = EM400(self.binary, add_opts, polldelay=0.01)
+            self.e = EM400(self.binary, add_opts, polldelay=0.01, timeout=self.timeout)
         else:
             if self.add_opts != add_opts:
                 if DEBUG:
                     print("Spawning EM400 with new options: %s %s" % (self.binary, " ".join(add_opts)))
                 self.e.close()
-                self.e = EM400(self.binary, add_opts, polldelay=0.01)
+                self.e = EM400(self.binary, add_opts, polldelay=0.01, timeout=self.timeout)
             else:
                 if DEBUG:
                     print("Reusing existing EM400 instance")
         self.add_opts = add_opts
+
+    # --------------------------------------------------------------------
+    def __killemu(self):
+        if self.e:
+            self.e.kill()
+            self.e = None
 
     # --------------------------------------------------------------------
     def baseline(self, bfile):
@@ -256,42 +287,31 @@ class TestBed:
             raise RuntimeError(o.decode('ascii'))
 
     # --------------------------------------------------------------------
-    def __gerparams(self, source):
+    def __getparams(self, source):
         opts = []
         xpct = []
         precmd = []
         postcmd = []
         for l in open(source, "r"):
-            # get OPTS directive
-            if "OPTS" in l:
+            m = re.match(r"[ \t]*;[ \t]*(OPTS|XPCT|PRECMD|POSTCMD)[ \t]+(.+?)[ \t]*$", l)
+            if not m:
+                continue
+            directive, arg = m.groups()
+            if directive == "OPTS":
+                opts += arg.split()
+            elif directive == "XPCT":
+                # split on the last colon, the expression itself may contain ':' ("[seg:addr]")
+                expr, sep, val = arg.rpartition(":")
                 try:
-                    popts = re.findall(";[ \t]*OPTS[ \t]+(.*)", l)[0].split()
-                    opts += popts
-                except:
-                    raise Exception("Malformed OPTS: %s" % l)
-            # get test result conditions
-            if "XPCT" in l:
-                try:
-                    pxpct = re.findall(";[ \t]*XPCT[ \t]+(.+):(.+)\n", l)
-                    expr = pxpct[0][0].strip()
-                    val = int(pxpct[0][1], 0) & 0xffff
-                    xpct += [(expr, val)]
-                except:
-                    raise Exception("Malformed XPCT: %s" % l)
-            # get pre-run commands
-            if "PRECMD" in l:
-                try:
-                    pprecmd = re.findall(";[ \t]*PRECMD[ \t]+(.*)", l)
-                    precmd += pprecmd
-                except:
-                    raise Exception("Malformed PRECMD: %s" % l)
-            # get post-run commands
-            if "POSTCMD" in l:
-                try:
-                    ppostcmd = re.findall(";[ \t]*POSTCMD[ \t]+(.*)", l)
-                    postcmd += ppostcmd
-                except:
-                    raise Exception("Malformed POSTCMD: %s" % l)
+                    if not sep:
+                        raise ValueError
+                    xpct += [(expr.strip(), int(val, 0) & 0xffff)]
+                except ValueError:
+                    raise SyntaxError("Malformed XPCT: %s" % arg)
+            elif directive == "PRECMD":
+                precmd += [arg]
+            elif directive == "POSTCMD":
+                postcmd += [arg]
 
         return opts, xpct, precmd, postcmd
 
@@ -300,14 +320,14 @@ class TestBed:
         result = TestResult(source)
 
         try:
-            opts, xpct, precmd, postcmd = self.__gerparams(source)
+            opts, xpct, precmd, postcmd = self.__getparams(source)
             aout = self.__assembly(source)
             self.__runemu(["-c", self.default_config] + opts)
             self.e.wait_for_stop()
             self.e.clear()
             self.e.load(0, 0, aout)
-            self.e.cmd("CLOCK OFF");
-            self.e.cmd("REG IC 0");
+            self.e.cmd("CLOCK OFF")
+            self.e.cmd("REG IC 0")
             if precmd:
                 for c in precmd:
                     self.e.cmd(c)
@@ -321,14 +341,18 @@ class TestBed:
                 for c in postcmd:
                     self.e.cmd(c)
 
+        except TimeoutError as e:
+            result.status = TestResult.TIMEOUT
+            result.error = str(e)
+            # em400 state is unknown at this point, don't reuse the instance
+            self.__killemu()
         except Exception as e:
-            result.passed = 0
+            result.status = TestResult.ERROR
             result.error = str(e).rstrip()
 
-        if result.passed == 0:
-            if self.failcmd:
-                for cmd in self.failcmd:
-                    result.failcmds += [(cmd, self.e.cmd_raw(cmd))]
+        if result.failed() and self.failcmd and self.e:
+            for cmd in self.failcmd:
+                result.failcmds += [(cmd, self.e.cmd_raw(cmd))]
 
         return result
 
@@ -349,11 +373,11 @@ class TestBed:
         ips = self.e.ips()
         self.e.stop()
         result.ips = ips/1000000.0
-        result.passed = 1
+        result.status = TestResult.BENCH
 
         if self.bl and source in self.bl:
-            diff = result.ips - self.bl[t]
-            result.ips_percent = (diff*100.0) / self.bl[t]
+            diff = result.ips - self.bl[source]
+            result.ips_percent = (diff*100.0) / self.bl[source]
 
 # ------------------------------------------------------------------------
 def collect_tests(i):
@@ -388,6 +412,8 @@ parser.add_argument("-e", "--emulator", help="emulator binary to run", default="
 parser.add_argument("-f", "--failcmd", help="command to run when test fails", action='append')
 parser.add_argument("-l", "--log", help="configure em400 logging", default="")
 parser.add_argument("-O", "--option", help="add the following option when running em400", action='append')
+parser.add_argument("-t", "--timeout", help="per-test timeout in seconds (default: 5)", type=float, default=5)
+parser.add_argument("-x", "--exitfirst", help="stop after the first failed test", action="store_true")
 parser.add_argument("-v", "--verbose", help="be verbose", action="store_const", const=1, default=0)
 parser.add_argument('test', nargs='*', help='Test to run (asm source, directory or test set). Default set is run when no tests are provided.')
 args = parser.parse_args()
@@ -407,7 +433,7 @@ tests.sort()
 # run tests
 total = 0
 failed = 0
-tb = TestBed("emas", args.emulator, args.baseline, benchmark_duration=0.5, failcmd=args.failcmd, log=args.log, options=args.option)
+tb = TestBed("emas", args.emulator, args.baseline, benchmark_duration=0.5, failcmd=args.failcmd, log=args.log, options=args.option, timeout=args.timeout)
 for t in tests:
     if not DEBUG:
         if sys.stdout.isatty():
@@ -421,11 +447,13 @@ for t in tests:
             print("\r", end="", flush=True)
     print(result)
     total += 1
-    if result.passed != 1:
+    if result.failed():
         failed += 1
         if result.failcmds:
             for f in result.failcmds:
                 print("   +++ %s: %s" % (f[0], f[1]))
+        if args.exitfirst:
+            break
 
 tb.close()
 
