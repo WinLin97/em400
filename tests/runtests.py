@@ -170,6 +170,7 @@ class TestResult:
         self.ips = None
         self.ips_percent = None
         self.failcmds = []
+        self.elapsed = None
 
     # --------------------------------------------------------------------
     def failed(self):
@@ -184,19 +185,25 @@ class TestResult:
             self.status = self.PASS
 
     # --------------------------------------------------------------------
+    def __elapsed(self):
+        if self.elapsed is None:
+            return ""
+        return "  [%.3fs]" % self.elapsed
+
+    # --------------------------------------------------------------------
     def __str__(self):
         if self.status == self.ERROR:
-            return "%-60s %s" % (self.name, self.error)
+            return "%-60s %s%s" % (self.name, self.error, self.__elapsed())
 
         if self.status == self.TIMEOUT:
-            return "%-60s \033[91mTIMEOUT\033[0m %s" % (self.name, self.error)
+            return "%-60s \033[91mTIMEOUT\033[0m %s%s" % (self.name, self.error, self.__elapsed())
 
         if self.status == self.BENCH:
             if self.ips_percent:
                 pc = "(%+.1f%%)" % self.ips_percent
             else:
                 pc = ""
-            return "%-60s %7.3f %s" % (self.name, self.ips, pc)
+            return "%-60s %7.3f %s%s" % (self.name, self.ips, pc, self.__elapsed())
 
         if self.status in (self.PASS, self.FAIL):
             pf = { self.FAIL: "\033[91mFAILED\033[0m", self.PASS: "\033[92mPASSED\033[0m" }
@@ -204,9 +211,9 @@ class TestResult:
             for expr, expected, got in self.checks:
                 if expected != got:
                     ret += " %s=%i!=%i" % (expr, got, expected)
-            return ret
+            return ret + self.__elapsed()
 
-        return "%-60s no result" % self.name
+        return "%-60s no result%s" % (self.name, self.__elapsed())
 
 # ------------------------------------------------------------------------
 class TestBed:
@@ -318,6 +325,7 @@ class TestBed:
     # --------------------------------------------------------------------
     def run(self, source):
         result = TestResult(source)
+        started = time.monotonic()
 
         try:
             opts, xpct, precmd, postcmd = self.__getparams(source)
@@ -349,6 +357,8 @@ class TestBed:
         except Exception as e:
             result.status = TestResult.ERROR
             result.error = str(e).rstrip()
+
+        result.elapsed = time.monotonic() - started
 
         if result.failed() and self.failcmd and self.e:
             for cmd in self.failcmd:
