@@ -632,6 +632,7 @@ void MainWindow::populate_devices_menu(QMenu *menu)
 			}
 			int port = dev->terminal.port;
 			QAction *open = menu->addAction(tr("Open terminal (%1:%2)").arg(ch).arg(d));
+			open->setEnabled(powered);
 			connect(open, &QAction::triggered, this, [this, port]() {
 				open_terminal(port);
 			});
