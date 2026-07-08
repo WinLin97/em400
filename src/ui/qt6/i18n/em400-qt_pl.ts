@@ -210,8 +210,12 @@
         <translation>Uruchom z włączoną maszyną</translation>
     </message>
     <message>
-        <source>When off, the graphical UI starts with the machine powered down - turn the ignition key to power it on.</source>
-        <translation>Gdy wyłączone, interfejs graficzny startuje z wyłączoną maszyną - przekręć kluczyk, aby ją włączyć.</translation>
+        <source>Panel theme</source>
+        <translation>Motyw pulpitu</translation>
+    </message>
+    <message>
+        <source>Small control panel</source>
+        <translation>Mały pulpit techniczny</translation>
     </message>
     <message>
         <source>Terminal command:</source>
@@ -356,6 +360,18 @@
     <message>
         <source>All</source>
         <translation>Wszystkie</translation>
+    </message>
+    <message>
+        <source>When off, the graphical UI starts with the machine powered down.
+Turn the ignition key to power it on.</source>
+        <translation>Gdy wyłączone, interfejs graficzny startuje z wyłączoną maszyną.
+Przekręć kluczyk, aby ją włączyć.</translation>
+    </message>
+    <message>
+        <source>Style the whole UI to match the MERA-400 control panel.
+When off, the system theme is used.</source>
+        <translation>Nadaje całemu interfejsowi wygląd pulpitu technicznego MERA-400.
+Gdy wyłączone, używany jest motyw systemowy.</translation>
     </message>
     <message>
         <source>Command launched by Devices -&gt; Open terminal.
@@ -578,10 +594,6 @@ Brak ramki: przerwanie niemaskowalne</translation>
         <translation>Plik</translation>
     </message>
     <message>
-        <source>View</source>
-        <translation>Widok</translation>
-    </message>
-    <message>
         <source>Load OS image...</source>
         <translation>Załaduj obraz OS...</translation>
     </message>
@@ -594,20 +606,24 @@ Brak ramki: przerwanie niemaskowalne</translation>
         <translation>Zakończ</translation>
     </message>
     <message>
-        <source>Small Control Panel</source>
-        <translation>Mały pulpit techniczny</translation>
+        <source>Search memory...</source>
+        <translation>Szukaj w pamięci...</translation>
+    </message>
+    <message>
+        <source>Ctrl+F</source>
+        <translation>Ctrl+F</translation>
     </message>
     <message>
         <source>Debugger</source>
         <translation>Debuger</translation>
     </message>
     <message>
-        <source>Ctrl+D</source>
-        <translation>Ctrl+D</translation>
+        <source>Small control panel</source>
+        <translation>Mały pulpit techniczny</translation>
     </message>
     <message>
-        <source>Panel Theme</source>
-        <translation>Motyw pulpitu</translation>
+        <source>Ctrl+D</source>
+        <translation>Ctrl+D</translation>
     </message>
     <message>
         <source>Disassembly</source>

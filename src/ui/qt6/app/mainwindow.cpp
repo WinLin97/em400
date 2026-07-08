@@ -34,7 +34,6 @@
 #include <QStyle>
 #include <QLabel>
 #include <QFrame>
-#include <QShortcut>
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "appcfg.h"
@@ -137,7 +136,7 @@ void MainWindow::build_docks()
 	watch = new WatchView(&e);
 	stack = new StackView(&e);
 
-	ui->menuView->addSeparator();
+	ui->menuDebugger->addSeparator();
 	dock_dasm  = register_dock(dasm,  tr("Disassembly"),      "dock_dasm");
 	dock_mem   = register_dock(mem,   tr("Memory"),           "dock_mem");
 	dock_uregs = register_dock(uregs, tr("User registers"),   "dock_uregs");
@@ -148,12 +147,6 @@ void MainWindow::build_docks()
 	dock_watch = register_dock(watch, tr("Watches"),          "dock_watch");
 	dock_stack = register_dock(stack, tr("Stack"),            "dock_stack");
 
-	QShortcut *search_sc = new QShortcut(QKeySequence::Find, this);
-	connect(search_sc, &QShortcut::activated, this, [this]() {
-		dock_mem->show();
-		dock_mem->raise();
-		mem->open_search();
-	});
 }
 
 // -----------------------------------------------------------------------
@@ -186,10 +179,18 @@ void MainWindow::init_layout()
 	cp_layout->addWidget(ui->cp, 0, 0, Qt::AlignHCenter | Qt::AlignTop);
 	setCentralWidget(cp_host);
 
-	ui->menuView->addSeparator();
+	ui->menuDebugger->addSeparator();
 	QAction *act_reset = new QAction(tr("Reset Layout"), this);
-	ui->menuView->addAction(act_reset);
+	ui->menuDebugger->addAction(act_reset);
 	connect(act_reset, &QAction::triggered, this, &MainWindow::apply_default_layout);
+
+	ui->menuDebugger->addSeparator();
+	ui->menuDebugger->addAction(ui->actionSearch_memory);
+	connect(ui->actionSearch_memory, &QAction::triggered, this, [this]() {
+		dock_mem->show();
+		dock_mem->raise();
+		mem->open_search();
+	});
 }
 
 // -----------------------------------------------------------------------
@@ -201,7 +202,6 @@ void MainWindow::wire_connections()
 	connect(ui->actionQuit, &QAction::triggered, this, &MainWindow::close);
 	connect(ui->actionSmall_Control_Panel, &QAction::toggled, this, &MainWindow::slot_smallcp_changed);
 	connect(ui->actionDebugger, &QAction::toggled, this, &MainWindow::slot_debugger_enabled_changed);
-	connect(ui->actionPanel_Theme, &QAction::toggled, this, &MainWindow::slot_panel_theme_changed);
 
 	menu_devices = menuBar()->addMenu(tr("Devices"));
 	connect(menu_devices, &QMenu::aboutToShow, this, [this]() { populate_devices_menu(menu_devices); });
@@ -355,13 +355,6 @@ void MainWindow::refresh_fonts()
 void MainWindow::restore_layout()
 {
 	QSettings settings;
-	// reflect the panel-theme choice in the menu without re-applying it: the
-	// theme was already set on the QApplication in ui_qt6_loop() before this
-	// window was constructed, so just sync the checkbox state.
-	{
-		QSignalBlocker block(ui->actionPanel_Theme);
-		ui->actionPanel_Theme->setChecked(settings.value("ui/panelTheme", true).toBool());
-	}
 	ui->cp->set_volume(settings.value("ui/guiVolume", 100).toInt());
 	// restore the small/large panel choice first; setChecked() fires the toggled
 	// signal which applies the crop (only when it actually differs from default)
@@ -404,7 +397,6 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	QSettings settings;
 	settings.setValue("layout/geometry", saveGeometry());
 	settings.setValue("layout/windowState", saveState());
-	settings.setValue("layout/smallPanel", ui->actionSmall_Control_Panel->isChecked());
 
 	e.stop();
 	event->accept();
@@ -417,7 +409,7 @@ QDockWidget *MainWindow::register_dock(QWidget *view, const QString &title, cons
 	QDockWidget *dock = new QDockWidget(title, this);
 	dock->setObjectName(objname);
 	dock->setWidget(view);
-	ui->menuView->addAction(dock->toggleViewAction());
+	ui->menuDebugger->addAction(dock->toggleViewAction());
 	docks.append(dock);
 	return dock;
 }
@@ -589,6 +581,8 @@ void MainWindow::open_config()
 	connect(config_dialog, &ConfigDialog::signal_machine_renamed, this, &MainWindow::update_window_title);
 	connect(config_dialog, &ConfigDialog::signal_gui_volume_changed, ui->cp, &ControlPanel::set_volume);
 	connect(config_dialog, &ConfigDialog::signal_mono_font_changed, this, &MainWindow::refresh_fonts);
+	connect(config_dialog, &ConfigDialog::signal_panel_theme_changed, this, &MainWindow::slot_panel_theme_changed);
+	connect(config_dialog, &ConfigDialog::signal_small_cp_changed, ui->actionSmall_Control_Panel, &QAction::setChecked);
 	config_dialog->show();
 	config_dialog->raise();
 	config_dialog->activateWindow();
@@ -651,6 +645,7 @@ void MainWindow::show_cp_context_menu(const QPoint &pos)
 	QMenu menu(this);
 	populate_devices_menu(&menu);
 	menu.addSeparator();
+	menu.addAction(ui->actionSmall_Control_Panel);
 	menu.addAction(ui->actionPreferences);
 	menu.exec(ui->cp->mapToGlobal(pos));
 }
@@ -727,6 +722,7 @@ void MainWindow::slot_debugger_enabled_changed(bool state)
 // -----------------------------------------------------------------------
 void MainWindow::slot_smallcp_changed(bool state)
 {
+	QSettings().setValue("layout/smallPanel", state);
 	ui->cp->slot_small_panel_changed(state);
 	int h = height();
 	for (int i=0 ; i<10 ; i++) qApp->processEvents(); // StackOverflow, I don't even...

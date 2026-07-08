@@ -65,17 +65,14 @@
     <addaction name="separator"/>
     <addaction name="actionQuit"/>
    </widget>
-   <widget class="QMenu" name="menuView">
+   <widget class="QMenu" name="menuDebugger">
     <property name="title">
-     <string>View</string>
+     <string>Debugger</string>
     </property>
-    <addaction name="actionSmall_Control_Panel"/>
     <addaction name="actionDebugger"/>
-    <addaction name="separator"/>
-    <addaction name="actionPanel_Theme"/>
    </widget>
    <addaction name="menuFile"/>
-   <addaction name="menuView"/>
+   <addaction name="menuDebugger"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionLoad_OS_image">
@@ -98,7 +95,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Small Control Panel</string>
+    <string>Small control panel</string>
    </property>
   </action>
   <action name="actionDebugger">
@@ -112,12 +109,12 @@
     <string>Ctrl+D</string>
    </property>
   </action>
-  <action name="actionPanel_Theme">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
+  <action name="actionSearch_memory">
    <property name="text">
-    <string>Panel Theme</string>
+    <string>Search memory...</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+F</string>
    </property>
   </action>
  </widget>

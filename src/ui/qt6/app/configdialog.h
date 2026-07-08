@@ -121,6 +121,8 @@ signals:
 	void signal_machine_renamed();
 	void signal_gui_volume_changed(int volume);
 	void signal_mono_font_changed();
+	void signal_panel_theme_changed(bool enabled);
+	void signal_small_cp_changed(bool enabled);
 
 private slots:
 	void slot_active_machine_changed(int index);

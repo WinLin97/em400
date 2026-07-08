@@ -56,7 +56,7 @@ private:
 	QWidget *edit_box;
 	QVector<QLabel *> mono_status_labels; // statusbar labels that track the mono font
 
-	// All debugger docks, in View-menu order. Built by register_dock(); the
+	// All debugger docks, in Debugger-menu order. Built by register_dock(); the
 	// named handles below alias entries here and exist only for the bespoke
 	// default arrangement in apply_default_layout().
 	QList<QDockWidget *> docks;

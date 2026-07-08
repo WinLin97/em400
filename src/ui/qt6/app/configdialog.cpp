@@ -278,13 +278,30 @@ QWidget *ConfigDialog::build_general_page()
 	ui_form->addRow(tr("Language:"), language_row);
 
 	QCheckBox *powered = new QCheckBox(tr("Start with the machine powered on"));
-	powered->setToolTip(tr("When off, the graphical UI starts with the machine powered down - turn the ignition key to power it on."));
+	powered->setToolTip(tr("When off, the graphical UI starts with the machine powered down.\nTurn the ignition key to power it on."));
 	powered->setChecked(QSettings().value("ui/startPoweredOn", false).toBool());
 	connect(powered, &QCheckBox::toggled, this, [](bool on) {
 		QSettings().setValue("ui/startPoweredOn", on);
 	});
 	gate(powered, "live");
 	ui_form->addRow(QString(), powered);
+
+	QCheckBox *panel_theme = new QCheckBox(tr("Panel theme"));
+	panel_theme->setToolTip(tr("Style the whole UI to match the MERA-400 control panel.\nWhen off, the system theme is used."));
+	panel_theme->setChecked(QSettings().value("ui/panelTheme", true).toBool());
+	connect(panel_theme, &QCheckBox::toggled, this, [this](bool on) {
+		emit signal_panel_theme_changed(on);
+	});
+	gate(panel_theme, "live");
+	ui_form->addRow(QString(), panel_theme);
+
+	QCheckBox *small_cp = new QCheckBox(tr("Small control panel"));
+	small_cp->setChecked(QSettings().value("layout/smallPanel", false).toBool());
+	connect(small_cp, &QCheckBox::toggled, this, [this](bool on) {
+		emit signal_small_cp_changed(on);
+	});
+	gate(small_cp, "live");
+	ui_form->addRow(QString(), small_cp);
 
 	QLineEdit *terminal_cmd = new QLineEdit();
 	terminal_cmd->setToolTip(tr("Command launched by Devices -> Open terminal.\n{port} is replaced with the terminal device's TCP port.\nThe default uses the bundled emterm helper."));
