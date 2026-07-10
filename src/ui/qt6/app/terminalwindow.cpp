@@ -335,7 +335,7 @@ void TerminalWindow::choose_font()
 	QSettings s;
 	s.setValue("ui/terminalFontFamily", chosen.family());
 	s.setValue("ui/terminalFontSize", chosen.pointSize());
-	apply_terminal_font();
+	emit signal_font_changed();
 }
 
 // vim: tabstop=4 shiftwidth=4 autoindent

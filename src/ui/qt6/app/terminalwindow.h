@@ -91,6 +91,9 @@ public:
 
 	void apply_terminal_font();
 
+signals:
+	void signal_font_changed();
+
 private:
 	int port;
 	QString label;

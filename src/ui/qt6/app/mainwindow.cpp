@@ -731,6 +731,7 @@ void MainWindow::open_terminal(int port, const QString &label)
 	// stackable above or below it (a parented top-level always stays on top)
 	TerminalWindow *w = new TerminalWindow(port, label);
 	w->setAttribute(Qt::WA_DeleteOnClose);
+	connect(w, &TerminalWindow::signal_font_changed, this, &MainWindow::refresh_terminal_fonts);
 	slot = w;
 	w->show();
 }
