@@ -626,8 +626,8 @@ Brak ramki: przerwanie niemaskowalne</translation>
         <translation>Plik</translation>
     </message>
     <message>
-        <source>Load OS image...</source>
-        <translation>Załaduj obraz OS...</translation>
+        <source>Load program image...</source>
+        <translation>Załaduj program...</translation>
     </message>
     <message>
         <source>Settings...</source>

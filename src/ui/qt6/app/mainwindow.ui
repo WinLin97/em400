@@ -77,7 +77,7 @@
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionLoad_OS_image">
    <property name="text">
-    <string>Load OS image...</string>
+    <string>Load program image...</string>
    </property>
   </action>
   <action name="actionPreferences">
