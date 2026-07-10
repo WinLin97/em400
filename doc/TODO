@@ -14,16 +14,13 @@ Work notes:
 * make MX async?
 * fix MX polymorphism?
 * make iotester async?
-* make sure no UI strings are left in the library, use types
 * generalize constructors?
 * cchar controllers don't use parameters - generic initialization?
 * generic callback registration for cchar controllers?
 * ensure consistent device naming
-* check for unconnected devices, unset callbacks
 
 Known issues:
 
-* tests vs multix interrupt reported too fast
 
 Cleanups:
 
