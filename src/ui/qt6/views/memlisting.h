@@ -31,6 +31,7 @@ class QScrollBar;
 class QKeyEvent;
 class QMouseEvent;
 class QFocusEvent;
+class QContextMenuEvent;
 
 // -----------------------------------------------------------------------
 // The scrolling memory grid: a plain 0,0-relative painted box. Segment, display
@@ -139,6 +140,7 @@ private:
 
 	bool hit_test_cell(const QPoint &pos, int &addr) const;
 	bool hit_test_panel(const QPoint &pos, int &addr, int &sub) const;
+	void load_file_at(int addr);
 	void start_edit(int addr);
 	void start_text_edit(int addr, int sub);
 	void commit_edit();
@@ -194,6 +196,7 @@ protected:
 	void resizeEvent(QResizeEvent *event) override;
 	void mousePressEvent(QMouseEvent *event) override;
 	void mouseMoveEvent(QMouseEvent *event) override;
+	void contextMenuEvent(QContextMenuEvent *event) override;
 	void mouseDoubleClickEvent(QMouseEvent *event) override;
 	void focusOutEvent(QFocusEvent *event) override;
 	void wheelEvent(QWheelEvent *event) override;

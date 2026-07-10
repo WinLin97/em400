@@ -29,7 +29,6 @@ public:
 
 	void run();
 	void stop();
-	bool load_os_image(QString filename);
 
 	bool is_powered() { return em400_is_powered(); }
 
@@ -39,6 +38,7 @@ public:
 	int get_mem(int nb, int addr);
 	int get_mem(int nb, int addr, uint16_t *m, int count);
 	bool set_mem(int nb, int addr, uint16_t v) { return em400_mem_write(nb, addr, &v, 1); }
+	bool set_mem(int nb, int addr, uint16_t *m, int count) { return em400_mem_write(nb, addr, m, count); }
 	// Read P live, not from last_p: last_p is sampled by the realtime timer,
 	// independently of the registers, so using it for the dasm "skip" bar can
 	// paint a stale-red frame before sync_flags catches up.

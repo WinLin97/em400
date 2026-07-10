@@ -1,5 +1,4 @@
 #include <QtDebug>
-#include <QFile>
 #include <cstdlib>
 #include "emumodel.h"
 #include "libem400.h"
@@ -344,24 +343,6 @@ int EmuModel::get_mem(int nb, int addr)
 	} else {
 		return -1;
 	}
-}
-
-// -----------------------------------------------------------------------
-bool EmuModel::load_os_image(QString filename)
-{
-	QFile file;
-	file.setFileName(filename);
-
-	// open via QFile (handles Unicode paths on Windows), then hand the stream
-	// to the lib - hence the FILE* entry rather than em400_load_os_image_path
-	if (!file.open(QIODevice::ReadOnly|QIODevice::ExistingOnly)) {
-		return false;
-	}
-
-	FILE *f = fdopen(file.handle(), "r");
-	em400_load_os_image(f);
-	fclose(f);
-	return true;
 }
 
 // vim: tabstop=4 shiftwidth=4 autoindent

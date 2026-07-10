@@ -199,7 +199,6 @@ void MainWindow::init_layout()
 void MainWindow::wire_connections()
 {
 	// MainWindow -> ControlPanel
-	connect(ui->actionLoad_OS_image, &QAction::triggered, this, &MainWindow::load_os_image);
 	connect(ui->actionPreferences, &QAction::triggered, this, &MainWindow::open_config);
 	connect(ui->actionQuit, &QAction::triggered, this, &MainWindow::close);
 	connect(ui->actionSmall_Control_Panel, &QAction::toggled, this, &MainWindow::slot_smallcp_changed);
@@ -765,19 +764,6 @@ void MainWindow::launch_terminal_command(int port)
 	if (!QProcess::startDetached(program, parts)) {
 		QMessageBox::warning(this, tr("Open terminal"), tr("Could not launch the terminal command:\n%1\n\nCheck the setting in Configuration -> General.").arg(tmpl));
 	}
-}
-
-// -----------------------------------------------------------------------
-void MainWindow::load_os_image()
-{
-	QString filename = QFileDialog::getOpenFileName(this, tr("Open OS image..."), nullptr, nullptr);
-	if (filename.isNull()) {
-		return;
-	}
-
-	QFileInfo fi(filename);
-
-	e.load_os_image(filename);
 }
 
 // -----------------------------------------------------------------------

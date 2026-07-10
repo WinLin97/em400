@@ -662,13 +662,13 @@ QWidget *ConfigDialog::build_machine_page()
 	});
 	QPushButton *preload_browse = new QPushButton(tr("Browse..."));
 	connect(preload_browse, &QPushButton::clicked, this, [this]() {
-		QString f = QFileDialog::getOpenFileName(this, tr("Preload OS image"), m_preload->text());
+		QString f = QFileDialog::getOpenFileName(this, tr("Preload program"), m_preload->text());
 		if (!f.isNull()) m_preload->setText(f);
 	});
 	QHBoxLayout *preload_row = new QHBoxLayout();
 	preload_row->addWidget(m_preload, 1);
 	preload_row->addWidget(preload_browse);
-	mem->addRow(tr("Preload OS image:"), preload_row);
+	mem->addRow(tr("Preload program:"), preload_row);
 	for (QWidget *w : std::initializer_list<QWidget *>{m_elwro, m_mega, m_os_segments, m_mega_prom,
 			prom_browse, m_preload, preload_browse}) {
 		gate(w, "cold");

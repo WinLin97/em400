@@ -55,12 +55,10 @@
      <height>23</height>
     </rect>
    </property>
-   <widget class="QMenu" name="menuFile">
+   <widget class="QMenu" name="menuEmulator">
     <property name="title">
-     <string>File</string>
+     <string>Emulator</string>
     </property>
-    <addaction name="actionLoad_OS_image"/>
-    <addaction name="separator"/>
     <addaction name="actionPreferences"/>
     <addaction name="separator"/>
     <addaction name="actionQuit"/>
@@ -71,15 +69,10 @@
     </property>
     <addaction name="actionDebugger"/>
    </widget>
-   <addaction name="menuFile"/>
+   <addaction name="menuEmulator"/>
    <addaction name="menuDebugger"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
-  <action name="actionLoad_OS_image">
-   <property name="text">
-    <string>Load program image...</string>
-   </property>
-  </action>
   <action name="actionPreferences">
    <property name="text">
     <string>Settings...</string>

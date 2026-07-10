@@ -113,7 +113,6 @@ private slots:
 	void slot_ips_update(unsigned long ips);
 	void slot_edit_mode_changed(bool editing, bool insert);
 
-	void load_os_image();
 	void open_config();
 
 public slots:

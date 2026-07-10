@@ -25,6 +25,11 @@
 #include <QFocusEvent>
 #include <QWheelEvent>
 #include <QFontInfo>
+#include <QMenu>
+#include <QContextMenuEvent>
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QFile>
 #include <emcrk/r40.h>
 #include "memlisting.h"
 #include "memsearch.h"
@@ -678,6 +683,69 @@ void MemListing::mouseMoveEvent(QMouseEvent *event)
 		return;
 	}
 	QWidget::mouseMoveEvent(event);
+}
+
+// -----------------------------------------------------------------------
+void MemListing::contextMenuEvent(QContextMenuEvent *event)
+{
+	int addr, sub;
+	if (!hit_test_cell(event->pos(), addr) && !hit_test_panel(event->pos(), addr, sub)) return;
+
+	QMenu menu(this);
+	QAction *load = menu.addAction(tr("Load file here..."));
+	// same gate as cell editing: no writes under a running CPU
+	load->setEnabled(!cpu_running && !editing);
+
+	QAction *chosen = menu.exec(event->globalPos());
+	if (chosen == load) {
+		load_file_at(addr);
+	}
+}
+
+// -----------------------------------------------------------------------
+// Copy a file verbatim into memory at cnb:addr, as big-endian words. This is
+// the debugger's raw loader - unrelated to the machine's BIN loading path.
+void MemListing::load_file_at(int addr)
+{
+	if (!e) return;
+
+	QString filename = QFileDialog::getOpenFileName(this, tr("Load file into memory"));
+	if (filename.isNull()) return;
+
+	QFile file(filename);
+	if (!file.open(QIODevice::ReadOnly | QIODevice::ExistingOnly)) {
+		QMessageBox::warning(this, tr("Load file into memory"), tr("Could not open file: %1").arg(filename));
+		return;
+	}
+	QByteArray data = file.readAll();
+	if (data.isEmpty()) {
+		QMessageBox::warning(this, tr("Load file into memory"), tr("File is empty: %1").arg(filename));
+		return;
+	}
+
+	int file_words = (data.size() + 1) / 2;
+	int count = qMin(file_words, 0x10000 - addr);
+	QVector<uint16_t> words(count);
+	for (int i=0 ; i<count ; i++) {
+		unsigned char hi = data.at(2 * i);
+		unsigned char lo = (2 * i + 1 < data.size()) ? data.at(2 * i + 1) : 0;
+		words[i] = (hi << 8) | lo;
+	}
+
+	// the core writes page by page, so a failure mid-range leaves earlier pages loaded
+	if (!e->set_mem(cnb, addr, words.data(), count)) {
+		QMessageBox::warning(this, tr("Load file into memory"), tr("Load failed at %1:0x%2. The file did not fit in the configured memory and may have been loaded partially.").arg(cnb).arg(addr, 4, 16, QLatin1Char('0')));
+		return;
+	}
+	if (count < file_words) {
+		QMessageBox::warning(this, tr("Load file into memory"), tr("File does not fit: loaded %1 of %2 words.").arg(count).arg(file_words));
+	}
+
+	// mark the loaded range so what changed is immediately visible
+	sel_nb = cnb;
+	sel_anchor = addr;
+	sel_caret = addr + count - 1;
+	update();
 }
 
 // -----------------------------------------------------------------------

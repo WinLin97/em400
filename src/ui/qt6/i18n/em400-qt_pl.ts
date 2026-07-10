@@ -310,14 +310,6 @@ Domyślne polecenie korzysta z dołączonego narzędzia emterm.</translation>
         <translation>Obraz PROM MEGA:</translation>
     </message>
     <message>
-        <source>Preload OS image</source>
-        <translation>Wstępnie ładowany obraz OS</translation>
-    </message>
-    <message>
-        <source>Preload OS image:</source>
-        <translation>Wstępnie ładowany obraz OS:</translation>
-    </message>
-    <message>
         <source>I/O</source>
         <translation>Wejście/wyjście</translation>
     </message>
@@ -424,6 +416,14 @@ Gdy wyłączone, używany jest motyw systemowy.</translation>
     <message>
         <source>CPU speaker</source>
         <translation>Głośniczek CPU</translation>
+    </message>
+    <message>
+        <source>Preload program</source>
+        <translation>Wstępnie ładowany program</translation>
+    </message>
+    <message>
+        <source>Preload program:</source>
+        <translation>Wstępnie ładowany program:</translation>
     </message>
     <message>
         <source>Device number:</source>
@@ -622,14 +622,6 @@ Brak ramki: przerwanie niemaskowalne</translation>
         <translation>EM400</translation>
     </message>
     <message>
-        <source>File</source>
-        <translation>Plik</translation>
-    </message>
-    <message>
-        <source>Load program image...</source>
-        <translation>Załaduj program...</translation>
-    </message>
-    <message>
         <source>Settings...</source>
         <translation>Ustawienia...</translation>
     </message>
@@ -648,6 +640,10 @@ Brak ramki: przerwanie niemaskowalne</translation>
     <message>
         <source>Debugger</source>
         <translation>Debuger</translation>
+    </message>
+    <message>
+        <source>Emulator</source>
+        <translation>Emulator</translation>
     </message>
     <message>
         <source>Small control panel</source>
@@ -787,16 +783,39 @@ Check the setting in Configuration -&gt; General.</source>
 
 Sprawdź ustawienie w Konfiguracja -&gt; Ogólne.</translation>
     </message>
-    <message>
-        <source>Open OS image...</source>
-        <translation>Otwórz obraz OS...</translation>
-    </message>
 </context>
 <context>
     <name>MapView</name>
     <message>
         <source>Click to set memory view to %1:%2</source>
         <translation>Kliknij, aby ustawić podgląd pamięci na %1:%2</translation>
+    </message>
+</context>
+<context>
+    <name>MemListing</name>
+    <message>
+        <source>Load file here...</source>
+        <translation>Załaduj plik tutaj...</translation>
+    </message>
+    <message>
+        <source>Load file into memory</source>
+        <translation>Załaduj plik do pamięci</translation>
+    </message>
+    <message>
+        <source>Could not open file: %1</source>
+        <translation>Nie udało się otworzyć pliku: %1</translation>
+    </message>
+    <message>
+        <source>File is empty: %1</source>
+        <translation>Plik jest pusty: %1</translation>
+    </message>
+    <message>
+        <source>Load failed at %1:0x%2. The file did not fit in the configured memory and may have been loaded partially.</source>
+        <translation>Ładowanie pod adres %1:0x%2 nie powiodło się. Plik nie zmieścił się w skonfigurowanej pamięci i mógł zostać załadowany częściowo.</translation>
+    </message>
+    <message>
+        <source>File does not fit: loaded %1 of %2 words.</source>
+        <translation>Plik się nie mieści: załadowano %1 z %2 słów.</translation>
     </message>
 </context>
 <context>
