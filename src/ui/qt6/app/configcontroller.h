@@ -53,10 +53,19 @@ public:
 	// changes. Empty path ejects.
 	void set_disk_image(unsigned chan, unsigned dev, unsigned slot, const QString &path);
 
+	// Switch the active machine (panel context menu): only meaningful while powered
+	// off, since the choice takes effect at the next power-on. Mutates appcfg and
+	// persists now. No-op when powered, unchanged, or the id is unknown.
+	void set_active_machine(const QString &id);
+
 signals:
 	// a menu swap landed; an open config dialog routes it into its working copy so
 	// OK cannot clobber it with a stale value. Empty path means ejected.
 	void media_changed(unsigned chan, unsigned dev, unsigned slot, QString path);
+
+	// the active machine switched from the menu; an open config dialog syncs its
+	// working copy so OK cannot revert to the previously active machine
+	void active_machine_changed(QString id);
 
 private:
 	struct appcfg *cfg;

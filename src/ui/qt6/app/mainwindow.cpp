@@ -26,6 +26,7 @@
 #include <QCoreApplication>
 #include <QRegularExpression>
 #include <QAction>
+#include <QActionGroup>
 #include <QMenu>
 #include <QMenuBar>
 #include <QSignalBlocker>
@@ -205,7 +206,10 @@ void MainWindow::wire_connections()
 	connect(ui->actionDebugger, &QAction::toggled, this, &MainWindow::slot_debugger_enabled_changed);
 
 	menu_devices = menuBar()->addMenu(tr("Devices"));
-	connect(menu_devices, &QMenu::aboutToShow, this, [this]() { populate_devices_menu(menu_devices); });
+	connect(menu_devices, &QMenu::aboutToShow, this, [this]() {
+		menu_devices->clear();
+		populate_devices_menu(menu_devices);
+	});
 
 	ui->cp->setContextMenuPolicy(Qt::CustomContextMenu);
 	connect(ui->cp, &QWidget::customContextMenuRequested, this, &MainWindow::show_cp_context_menu);
@@ -585,6 +589,7 @@ void MainWindow::open_config()
 	connect(config_dialog, &QDialog::finished, config_dialog, &QObject::deleteLater);
 	connect(&e, &EmuModel::signal_power_changed, config_dialog, &ConfigDialog::update_enabled_states);
 	connect(&cfg_ctl, &ConfigController::media_changed, config_dialog, &ConfigDialog::on_media_changed);
+	connect(&cfg_ctl, &ConfigController::active_machine_changed, config_dialog, &ConfigDialog::on_active_machine_changed);
 	connect(config_dialog, &ConfigDialog::signal_machine_renamed, this, &MainWindow::update_window_title);
 	connect(config_dialog, &ConfigDialog::signal_gui_volume_changed, ui->cp, &ControlPanel::set_volume);
 	connect(config_dialog, &ConfigDialog::signal_mono_font_changed, this, &MainWindow::refresh_fonts);
@@ -599,8 +604,6 @@ void MainWindow::open_config()
 // -----------------------------------------------------------------------
 void MainWindow::populate_devices_menu(QMenu *menu)
 {
-	menu->clear();
-
 	struct appcfg_machine *m = appcfg_machine_find(&appcfg, appcfg.active_id);
 	if (!m) return;
 
@@ -650,10 +653,36 @@ void MainWindow::populate_devices_menu(QMenu *menu)
 }
 
 // -----------------------------------------------------------------------
+void MainWindow::populate_machine_menu(QMenu *menu)
+{
+	QMenu *sub = menu->addMenu(tr("Change machine"));
+	bool powered = e.is_powered();
+
+	QActionGroup *grp = new QActionGroup(sub);
+	const QString active = appcfg.active_id ? QString::fromUtf8(appcfg.active_id) : QString();
+
+	for (int i=0 ; i<appcfg.n_machines ; i++) {
+		const struct appcfg_machine *m = &appcfg.machines[i];
+		QString id = QString::fromUtf8(m->id);
+		QAction *a = sub->addAction(m->name ? QString::fromUtf8(m->name) : id);
+		a->setCheckable(true);
+		a->setChecked(id == active);
+		a->setEnabled(!powered);
+		grp->addAction(a);
+		connect(a, &QAction::triggered, this, [this, id]() {
+			cfg_ctl.set_active_machine(id);
+			update_window_title();
+		});
+	}
+}
+
+// -----------------------------------------------------------------------
 void MainWindow::show_cp_context_menu(const QPoint &pos)
 {
 	QMenu menu(this);
 	populate_devices_menu(&menu);
+	menu.addSeparator();
+	populate_machine_menu(&menu);
 	menu.addSeparator();
 	menu.addAction(ui->actionSmall_Control_Panel);
 	menu.addAction(ui->actionPreferences);

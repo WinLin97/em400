@@ -750,6 +750,10 @@ Brak ramki: przerwanie niemaskowalne</translation>
         <translation>Otwórz terminal (%1)</translation>
     </message>
     <message>
+        <source>Change machine</source>
+        <translation>Zmień maszynę</translation>
+    </message>
+    <message>
         <source>Load...</source>
         <translation>Załaduj...</translation>
     </message>

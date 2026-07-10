@@ -1332,6 +1332,13 @@ void ConfigDialog::on_media_changed(unsigned chan, unsigned dev, unsigned slot, 
 }
 
 // -----------------------------------------------------------------------
+void ConfigDialog::on_active_machine_changed(QString id)
+{
+	int idx = m_active->findData(id);
+	if (idx >= 0) m_active->setCurrentIndex(idx); // cascades into slot_active_machine_changed
+}
+
+// -----------------------------------------------------------------------
 void ConfigDialog::reload_machine_page()
 {
 	bool have = machine != nullptr;

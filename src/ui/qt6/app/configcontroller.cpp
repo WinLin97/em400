@@ -124,4 +124,24 @@ void ConfigController::set_disk_image(unsigned chan, unsigned dev, unsigned slot
 	free(migrated);
 }
 
+// -----------------------------------------------------------------------
+void ConfigController::set_active_machine(const QString &id)
+{
+	if (emu->is_powered()) return;
+
+	QByteArray idb = id.toUtf8();
+	if (!appcfg_machine_find(cfg, idb.constData())) return;
+	if (cfg->active_id && strcmp(cfg->active_id, idb.constData()) == 0) return;
+
+	free(cfg->active_id);
+	cfg->active_id = strdup(idb.constData());
+
+	const char *path = appcfg_path();
+	if (!path || appcfg_write(cfg, path) != E_OK) {
+		em400_msg(EM400_MSG_ERROR, "Failed to save configuration after machine change");
+	}
+
+	emit active_machine_changed(id);
+}
+
 // vim: tabstop=4 shiftwidth=4 autoindent

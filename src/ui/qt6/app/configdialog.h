@@ -117,6 +117,10 @@ public slots:
 	// value, and refresh the field if that device is on screen
 	void on_media_changed(unsigned chan, unsigned dev, unsigned slot, QString path);
 
+	// the active machine switched from the panel menu while we are open: mirror it
+	// into the combo (which cascades into the working copy) so OK can't revert it
+	void on_active_machine_changed(QString id);
+
 signals:
 	void signal_machine_renamed();
 	void signal_gui_volume_changed(int volume);

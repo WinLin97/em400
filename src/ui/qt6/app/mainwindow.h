@@ -90,6 +90,7 @@ private:
 	// Devices menu: rebuilt on open (aboutToShow) from the active machine's media
 	// slots, so it always reflects current images and power-gated editability.
 	QMenu *menu_devices = nullptr;
+	void populate_machine_menu(QMenu *menu);
 	void populate_devices_menu(QMenu *menu);
 	void add_media_slot(QMenu *menu, int chan, int dev, int slot, const QString &title, const char *image, bool powered);
 	void open_terminal(int port, const QString &label);
