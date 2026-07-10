@@ -62,21 +62,32 @@ void em400_apply_terminal_font(QFont &f)
 	if (size > 0) f.setPointSize(size);
 }
 
-// The "MERA-400 LED" palette, derived by eye from the control-panel look.
-// The accents are intensity-matched bright LED primaries (green/yellow/red)
-// so they read as one family.
+// The "MERA-400" palette, derived by eye from the control-panel look. The
+// accent model is the panel's own physics - lamps glow, steel doesn't: the
+// machine speaks in intensity-matched bright LED primaries (green/yellow/red),
+// the operator's marks (selection, edit, chrome accent) are the keys' steel.
 // - background + lettering are structural (the palette is built from them);
-// - separator/green/yellow/red are the semantic accents
+// - separator/green/yellow/red/steel are the semantic accents
 static const QColor c_background(0x38, 0x38, 0x38); // panel gunmetal
-static const QColor c_lettering(0xeb, 0xeb, 0xe9); // near-white labels, ~9.8:1 on bg
+static const QColor c_lettering(0xf0, 0xf0, 0xf0); // clean near-white labels, ~10.3:1 on bg
 static const QColor c_separator(0xab, 0x57, 0x4f); // muted red: divider/separator rules
-static const QColor c_green(0x99, 0xf7, 0x00); // "you are here": Highlight, IC bar, edit cell
+static const QColor c_green(0x8c, 0xf7, 0x00); // "you are here" (the machine): IC bar
 static const QColor c_yellow(0xff, 0xf3, 0x25); // "this is on": mask boxes, allocation map, pending int
 static const QColor c_red(0xff, 0x42, 0x61); // "won't execute": P-flag IC bar
+static const QColor c_steel(0xea, 0xea, 0xea); // operator's mark: Highlight (selection, edit fill)
 
 // Whether the panel theme is currently applied (kept in sync by
 // em400_apply_theme). Defaults to the startup default (panel on).
 static bool g_panel_active = true;
+
+// -----------------------------------------------------------------------
+// Contrast text for an arbitrary fill: dark (the fill pulled way down, keeping
+// its hue) on a light fill, the lettering on a dark one.
+static QColor text_on(const QColor &fill)
+{
+	const int lum = (299 * fill.red() + 587 * fill.green() + 114 * fill.blue()) / 1000;
+	return (lum > 110) ? fill.darker(500) : c_lettering;
+}
 
 // -----------------------------------------------------------------------
 QPalette em400_panel_palette()
@@ -85,7 +96,6 @@ QPalette em400_panel_palette()
 	// Fusion shade roles are derived by lightness) and the off-white lettering.
 	const QColor bg = c_background;
 	const QColor text = c_lettering;
-	const QColor green = c_green;
 
 	// Shade roles derived from the background so bevels/borders track the chosen
 	// gunmetal. lighter()/darker() take a percentage (>100 = lighter/darker).
@@ -100,8 +110,6 @@ QPalette em400_panel_palette()
 	const QColor c_tooltip = bg.darker(150);
 	// dim/ghost text: the lettering pulled well down toward the background
 	const QColor c_disabled = text.darker(180);
-	// dark text that rides on the green highlight fill
-	const QColor c_hltext = green.darker(600);
 
 	QPalette p;
 
@@ -123,9 +131,9 @@ QPalette em400_panel_palette()
 	p.setColor(QPalette::Mid, c_mid);
 	p.setColor(QPalette::Dark, c_dark);
 	p.setColor(QPalette::Shadow, c_shadow);
-	p.setColor(QPalette::Highlight, green);
-	p.setColor(QPalette::HighlightedText, c_hltext);
-	p.setColor(QPalette::Link, green);
+	p.setColor(QPalette::Highlight, c_steel);
+	p.setColor(QPalette::HighlightedText, text_on(c_steel));
+	p.setColor(QPalette::Link, c_steel);
 
 	// Dim/ghost text used by IntView/MapView/RegCompact comes from the
 	// Disabled group's WindowText/Text role.
@@ -222,6 +230,24 @@ QColor em400_red_color(const QPalette &pal)
 {
 	(void) pal;
 	return g_panel_active ? c_red : QColor(Qt::red).lighter();
+}
+
+// -----------------------------------------------------------------------
+// The machine's locus - full-intensity LED green, reserved for state of the
+// emulated hardware (the IC bar). User-side loci (selection, edit) take the
+// steel palette Highlight instead. The desktop accent under the system theme.
+QColor em400_here_color(const QPalette &pal)
+{
+	return g_panel_active ? c_green : pal.color(QPalette::Highlight);
+}
+
+// -----------------------------------------------------------------------
+// Dark contrast text riding a FULL-intensity accent fill (the IC bar, the
+// yellow pending-interrupt cell). Not the palette HighlightedText, which now
+// pairs with the muted selection fill.
+QColor em400_accent_text_color(const QPalette &pal)
+{
+	return g_panel_active ? c_green.darker(600) : pal.color(QPalette::HighlightedText);
 }
 
 // vim: tabstop=4 shiftwidth=4 autoindent

@@ -235,7 +235,7 @@ void IntView::render_cell(int n)
 	// the bold text when masked-but-pending. The mask border (render_box) is the
 	// same yellow when the gate is open, so a fully-yellow cell = will fire.
 	QString yellow = em400_mask_color(palette()).name();
-	QString yellow_text = palette().color(QPalette::HighlightedText).name();
+	QString yellow_text = em400_accent_text_color(palette()).name();
 	QString dim = em400_dim_text_color(palette()).name();
 
 	QString ss;

@@ -270,8 +270,8 @@ void MemListing::update_contents_no_nb(int new_line)
 }
 
 // -----------------------------------------------------------------------
-// Jump to a segment+address (placing its line at the top) and frame that cell
-// with a green accent box. Driven by the disassembly view's "Locate in Memory
+// Jump to a segment+address (placing its line at the top) and mark that cell
+// with the selection fill. Driven by the disassembly view's "Locate in Memory
 // View" context action.
 void MemListing::locate_cell(int nb, int addr)
 {
@@ -279,7 +279,7 @@ void MemListing::locate_cell(int nb, int addr)
 	cnb = nb;
 
 	// only scroll when the target line isn't already on screen; if it is, leave
-	// the view put so the accent box just appears where it already sits. Use the
+	// the view put so the selection just appears where it already sits. Use the
 	// fully-visible line count (total_lines counts a clipped bottom row).
 	int visible = (bottom - col_hdr_h) / line_height;
 	if (visible < 1) visible = 1;
@@ -633,7 +633,7 @@ bool MemListing::valid_buf(const QString &s) const
 }
 
 // -----------------------------------------------------------------------
-// Left click selects the clicked cell with the green accent box; clicking the
+// Left click selects the clicked cell with the selection fill; clicking the
 // already-selected single cell de-selects it. Shift+click extends the existing
 // selection from its anchor to the clicked cell. A press then begins a drag
 // (see mouseMoveEvent) that grows the range. Works in the value column and the
@@ -712,7 +712,7 @@ void MemListing::focusOutEvent(QFocusEvent *event)
 // -----------------------------------------------------------------------
 // Run the search from the cursor in the given direction (via MemSearch) and, on
 // a hit, follow the view to it: switch to the hit's segment, reveal the matching
-// side pane, frame the matched word run with the green selection box (the hit IS
+// side pane, mark the matched word run with the selection fill (the hit IS
 // the current locus) and remember it as the cursor NEXT / PREV resumes from. The
 // dock supplies the query and renders the outcome we return as a cue.
 MemListing::SearchOutcome MemListing::search(const QString &query, MemSearch::Mode mode, bool all_segments, bool forward)
@@ -835,10 +835,26 @@ void MemListing::draw_line(QPainter &painter, int y, int base_addr, int cell_w, 
 
 	painter.setFont(font);
 
+	// selection run clipped to this line: drives the fill (drawn first, cell
+	// text paints over it) and the per-cell contrast text tint. A selection
+	// spanning several lines yields one fill per line, each covering the
+	// contiguous run of selected columns that falls on that line.
+	int sel_a = 1, sel_b = 0;
+	if (sel_nb == cnb && has_selection()) {
+		int line_hi = base_addr + words_per_line - 1;
+		if (line_hi > 0xffff) line_hi = 0xffff;
+		sel_a = qMax(sel_lo(), base_addr);
+		sel_b = qMin(sel_hi(), line_hi);
+	}
+	if (sel_a <= sel_b) {
+		draw_selection_fill(painter, sel_a - base_addr, sel_b - base_addr, y, cell_w, pcell_w, side_x);
+	}
+
 	for (int x = 0; x < words_per_line; x++) {
 		int addr = base_addr + x;
 		if (addr > 0xffff) break;
 		int val = e->get_mem(cnb, addr);
+		bool in_sel = (addr >= sel_a) && (addr <= sel_b);
 
 		if (fmt != FMT_OFF) {
 			// a value-column edit overlays its cell and suppresses the side panel
@@ -847,23 +863,17 @@ void MemListing::draw_line(QPainter &painter, int y, int base_addr, int cell_w, 
 				continue;
 			}
 
-			draw_value_cell(painter, x, y, val, cell_w);
-
-			// companion outline: while text-editing, frame the same word in the
-			// value column (green = same locus, mirrored; outline not fill so it
-			// reads as passive next to the active edit cell)
-			if (editing && edit_kind == EDIT_TEXT && cnb == edit_nb && addr == edit_addr) {
+			// companion fill: while text-editing, mark the same word in the value
+			// column (same locus, mirrored)
+			bool companion = editing && (edit_kind == EDIT_TEXT) && (cnb == edit_nb) && (addr == edit_addr);
+			if (companion) {
 				int ex = mem_x_start + x * cell_w;
 				int ey = col_hdr_h + y * line_height;
 				int val_w = (val_chars() - 1) * font_width;
-				painter.setPen(QPen(palette().color(QPalette::Highlight), 1));
-				painter.setRenderHint(QPainter::Antialiasing, true);
-				// half-pixel offset so the 1px stroke sits on pixel centers: keeps
-				// the straight edges crisp, antialiasing only the rounded corners
-				QRectF r(ex - half_font_width + 0.5, ey + 0.5, val_w + font_width - 1, line_height - 1);
-				painter.drawRoundedRect(r, 2, 2);
-				painter.setRenderHint(QPainter::Antialiasing, false);
+				painter.fillRect(ex - half_font_width, ey, val_w + font_width, line_height, palette().color(QPalette::Highlight));
 			}
+
+			draw_value_cell(painter, x, y, val, cell_w, in_sel || companion);
 		}
 
 		if (panel != PANEL_OFF) {
@@ -872,71 +882,48 @@ void MemListing::draw_line(QPainter &painter, int y, int base_addr, int cell_w, 
 			} else if (editing && edit_kind == EDIT_TEXT && cnb == edit_nb && edit_orig.contains(addr)) {
 				draw_panel_cell_edited(painter, x, y, addr, val, pcell_w, side_x);
 			} else {
-				draw_panel_cell(painter, x, y, val, pcell_w, side_x);
+				draw_panel_cell(painter, x, y, val, pcell_w, side_x, in_sel);
 			}
 		}
 
 	}
-
-	// drawn in a second pass, after every cell on the line: the box bleeds a bit
-	// past its cell and would otherwise be painted over by the next cell's chars.
-	// A selection spanning several lines yields one box per line, each covering
-	// the contiguous run of selected columns that falls on that line.
-	if (sel_nb == cnb && has_selection()) {
-		int line_hi = base_addr + words_per_line - 1;
-		if (line_hi > 0xffff) line_hi = 0xffff;
-		int a = qMax(sel_lo(), base_addr);
-		int b = qMin(sel_hi(), line_hi);
-		if (a <= b) {
-			draw_locate_box(painter, a - base_addr, b - base_addr, y, cell_w, pcell_w, side_x);
-		}
-	}
 }
 
 // -----------------------------------------------------------------------
-// Frame the selected cells (columns col0..col1 inclusive on this line) with the
-// green accent box used by "Locate in Memory View" - same look as the editor's
-// companion outline. The numeric and the side-panel run are each boxed when
-// their column is shown, so the selection stays framed in both halves at once.
-void MemListing::draw_locate_box(QPainter &painter, int col0, int col1, int y, int cell_w, int pcell_w, int side_x)
+// Fill the selected cells (columns col0..col1 inclusive on this line) with the
+// operator's Highlight; also used by "Locate in Memory View" and search hits.
+// The numeric and the side-panel run are each filled when their column is
+// shown, so the selection stays marked in both halves at once. Height is the
+// full line_height so a multi-row selection reads as one continuous block.
+void MemListing::draw_selection_fill(QPainter &painter, int col0, int col1, int y, int cell_w, int pcell_w, int side_x)
 {
 	int ey = col_hdr_h + y * line_height;
 	int ncells = col1 - col0 + 1;
+	QColor fill = palette().color(QPalette::Highlight);
 
-	painter.setPen(QPen(palette().color(QPalette::Highlight), 1));
-	painter.setRenderHint(QPainter::Antialiasing, true);
-
-	// half-pixel offset so the 1px stroke sits on pixel centers (crisp edges).
-	// Height is line_height (not -1) so the bottom edge of one row's box lands on
-	// the top edge of the next: a multi-row selection reads as one continuous
-	// box instead of two stacked 1px lines where rows touch.
 	if (fmt != FMT_OFF) {
 		int bx = mem_x_start + col0 * cell_w - half_font_width;
-		QRectF r(bx + 0.5, ey + 0.5, ncells * cell_w - 1, line_height);
-		painter.drawRoundedRect(r, 2, 2);
+		painter.fillRect(bx, ey, ncells * cell_w, line_height, fill);
 	}
 	if (panel != PANEL_OFF) {
-		// pull the panel box in by 2px each side: panel cells are packed with no
+		// pull the panel fill in by 2px each side: panel cells are packed with no
 		// trailing pad, so the full half-font margin would bleed into neighbours
 		int bx = side_x + col0 * pcell_w - half_font_width + 2;
-		QRectF r(bx + 0.5, ey + 0.5, ncells * pcell_w + font_width - 5, line_height);
-		painter.drawRoundedRect(r, 2, 2);
+		painter.fillRect(bx, ey, ncells * pcell_w + font_width - 4, line_height, fill);
 	}
-
-	painter.setRenderHint(QPainter::Antialiasing, false);
 }
 
 // -----------------------------------------------------------------------
-void MemListing::draw_value_cell(QPainter &painter, int x, int y, int val, int cell_w)
+void MemListing::draw_value_cell(QPainter &painter, int x, int y, int val, int cell_w, bool on_sel)
 {
-	painter.setPen(palette().color(QPalette::Text));
+	painter.setPen(on_sel ? palette().color(QPalette::HighlightedText) : palette().color(QPalette::Text));
 	painter.drawText(mem_x_start + x * cell_w, mem_y_start + y * line_height, value_text(val));
 }
 
 // -----------------------------------------------------------------------
-void MemListing::draw_panel_cell(QPainter &painter, int x, int y, int val, int pcell_w, int side_x)
+void MemListing::draw_panel_cell(QPainter &painter, int x, int y, int val, int pcell_w, int side_x, bool on_sel)
 {
-	painter.setPen(em400_dim_text_color(palette()));
+	painter.setPen(on_sel ? palette().color(QPalette::HighlightedText) : em400_dim_text_color(palette()));
 	painter.drawText(side_x + x * pcell_w, mem_y_start + y * line_height, panel_text(val));
 }
 
@@ -948,10 +935,9 @@ void MemListing::draw_panel_cell_edited(QPainter &painter, int x, int y, int add
 {
 	QString cur = panel_text(val);
 	QString orig = panel_text((int)edit_orig.value(addr));
-	// changed sub-chars pop in the green accent ("you are here" = the edit);
-	// untouched ones stay dim
+	// changed sub-chars pop in full-contrast Text; untouched ones stay dim
 	QColor dim = em400_dim_text_color(palette());
-	QColor accent = palette().color(QPalette::Highlight);
+	QColor accent = palette().color(QPalette::Text);
 	int bx = side_x + x * pcell_w;
 	int by = mem_y_start + y * line_height;
 

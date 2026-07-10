@@ -226,7 +226,7 @@ void MemView::validate_search()
 	}
 
 	// Red outline on invalid input. The QSS border replaces the native frame
-	// (and its green focus ring); round the corners so it reads as a deliberate
+	// (and its focus ring); round the corners so it reads as a deliberate
 	// frame, and pad the text back in by 1px so it doesn't shift versus the
 	// native frame's content inset.
 	QString border = QString("QLineEdit { border: 1px solid %1; border-radius: 3px; padding: 1px; }")

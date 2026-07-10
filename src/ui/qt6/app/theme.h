@@ -50,6 +50,8 @@ QColor em400_sep_color(const QPalette &pal); // divider / separator rules
 QColor em400_dim_text_color(const QPalette &pal); // secondary-but-readable text (ascii/r40 panel)
 QColor em400_mask_color(const QPalette &pal); // mask boxes + allocation map (amber)
 QColor em400_red_color(const QPalette &pal); // "will not take effect": P-flag IC bar + rejected input (red)
+QColor em400_here_color(const QPalette &pal); // machine locus: full LED green (IC bar)
+QColor em400_accent_text_color(const QPalette &pal); // dark text on a full-intensity accent fill
 
 #endif // EM400_QT6_THEME_H
 

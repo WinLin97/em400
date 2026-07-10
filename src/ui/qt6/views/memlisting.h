@@ -175,12 +175,12 @@ private:
 	// paintEvent helpers
 	void draw_offset_row(QPainter &painter, int cell_w, int pcell_w, int side_x);
 	void draw_line(QPainter &painter, int y, int base_addr, int cell_w, int pcell_w, int side_x);
-	void draw_value_cell(QPainter &painter, int x, int y, int val, int cell_w);
+	void draw_value_cell(QPainter &painter, int x, int y, int val, int cell_w, bool on_sel);
 	void draw_edit_cell(QPainter &painter, int x, int y, int cell_w);
-	void draw_panel_cell(QPainter &painter, int x, int y, int val, int pcell_w, int side_x);
+	void draw_panel_cell(QPainter &painter, int x, int y, int val, int pcell_w, int side_x, bool on_sel);
 	void draw_panel_cell_edited(QPainter &painter, int x, int y, int addr, int val, int pcell_w, int side_x);
 	void draw_panel_edit_cell(QPainter &painter, int x, int y, int val, int pcell_w, int side_x);
-	void draw_locate_box(QPainter &painter, int col0, int col1, int y, int cell_w, int pcell_w, int side_x);
+	void draw_selection_fill(QPainter &painter, int col0, int col1, int y, int cell_w, int pcell_w, int side_x);
 	QString value_text(int val) const;
 	QString panel_text(int val) const;
 

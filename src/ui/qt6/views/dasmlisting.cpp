@@ -286,18 +286,19 @@ void DasmListing::paintEvent(QPaintEvent *event)
 
 		// bar for IC location
 		if (at_ic) {
-			// "you are here" is green (Highlight); but if the "P" flag is set the
-			// instruction at IC will NOT execute - flag that with the red accent.
+			// "you are here" is the machine's full LED green; but if the "P" flag
+			// is set the instruction at IC will NOT execute - flag that with the
+			// red accent.
 			if (e->get_p()) {
 				bar_color = em400_red_color(palette());
 			} else {
-				bar_color = palette().color(QPalette::Highlight);
+				bar_color = em400_here_color(palette());
 			}
 			painter.fillRect(QRect(1, y+font_descent+1, width()-2, -(line_height-1)), bar_color);
 		}
 
 		// address
-		if (at_ic) painter.setPen(palette().color(QPalette::HighlightedText));
+		if (at_ic) painter.setPen(em400_accent_text_color(palette()));
 		else painter.setPen(palette().color(QPalette::Text));
 		QString addr_str = QString("%1").arg((uint16_t)l.addr, 4, 16, QLatin1Char('0'));
 		font.setBold(true);
@@ -307,7 +308,7 @@ void DasmListing::paintEvent(QPaintEvent *event)
 		// code
 		font.setBold(false);
 		painter.setFont(font);
-		if (at_ic) painter.setPen(palette().color(QPalette::HighlightedText));
+		if (at_ic) painter.setPen(em400_accent_text_color(palette()));
 		else painter.setPen(palette().color(QPalette::Text));
 		painter.drawText(dasm_x_start, y, l.text);
 
