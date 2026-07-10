@@ -47,6 +47,21 @@ void em400_apply_mono_font(QFont &f)
 	if (size > 0) f.setPointSize(size);
 }
 
+// -----------------------------------------------------------------------
+void em400_apply_terminal_font(QFont &f)
+{
+	em400_apply_mono_font(f);
+
+	QSettings s;
+	const QString family = s.value(QStringLiteral("ui/terminalFontFamily")).toString();
+	if (!family.isEmpty()) {
+		f.setFamily(family);
+	}
+
+	const int size = s.value(QStringLiteral("ui/terminalFontSize"), 0).toInt();
+	if (size > 0) f.setPointSize(size);
+}
+
 // The "MERA-400 LED" palette, derived by eye from the control-panel look.
 // The accents are intensity-matched bright LED primaries (green/yellow/red)
 // so they read as one family.

@@ -8,6 +8,7 @@
 #include <QDockWidget>
 #include <QList>
 #include <QVector>
+#include <QMap>
 #include <QPointer>
 #include <emdas.h>
 #include "emumodel.h"
@@ -26,6 +27,7 @@ class MainWindow;
 }
 
 class ConfigDialog;
+class TerminalWindow;
 class QMenu;
 
 class MainWindow : public QMainWindow
@@ -90,8 +92,14 @@ private:
 	QMenu *menu_devices = nullptr;
 	void populate_devices_menu(QMenu *menu);
 	void add_media_slot(QMenu *menu, int chan, int dev, int slot, const QString &title, const char *image, bool powered);
-	void open_terminal(int port);
+	void open_terminal(int port, const QString &label);
+	void launch_terminal_command(int port);
+	void refresh_terminal_fonts();
 	void show_cp_context_menu(const QPoint &pos);
+
+	// One built-in terminal window per device port; the QPointer auto-nulls on
+	// close so a re-open just makes a fresh one.
+	QMap<int, QPointer<TerminalWindow>> terminals;
 
 	QDockWidget *register_dock(QWidget *view, const QString &title, const QString &objname);
 	void apply_default_layout();

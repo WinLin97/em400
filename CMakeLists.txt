@@ -49,6 +49,7 @@ endif()
 set(UI_QT OFF)
 find_package(Qt6 COMPONENTS Widgets)
 find_package(Qt6 COMPONENTS Multimedia)
+find_package(Qt6 COMPONENTS Network)
 find_package(Qt6 COMPONENTS LinguistTools)
 
 if (Qt6Widgets_FOUND)
@@ -240,6 +241,7 @@ if (UI_QT)
 	list(APPEND SOURCES_EM400 src/ui/qt6/app/theme.h src/ui/qt6/app/theme.cpp)
 	list(APPEND SOURCES_EM400 src/ui/qt6/app/configdialog.h src/ui/qt6/app/configdialog.cpp)
 	list(APPEND SOURCES_EM400 src/ui/qt6/app/configcontroller.h src/ui/qt6/app/configcontroller.cpp)
+	list(APPEND SOURCES_EM400 src/ui/qt6/app/terminalwindow.h src/ui/qt6/app/terminalwindow.cpp)
 
 	# dockable debugger views
 	list(APPEND SOURCES_EM400 src/ui/qt6/views/dasmview.h src/ui/qt6/views/dasmview.cpp)
@@ -339,6 +341,7 @@ if (UI_QT)
 	target_compile_definitions(em400 PRIVATE UI_QT)
 	target_link_libraries(em400 ${Qt6Widgets_LIBRARIES})
 	target_link_libraries(em400 ${Qt6Multimedia_LIBRARIES})
+	target_link_libraries(em400 ${Qt6Network_LIBRARIES})
 
 	# Build the .qm files before em400's AUTORCC embeds them via translations.qrc.
 	add_custom_target(em400_translations DEPENDS ${EM400_QM_FILES})

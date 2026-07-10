@@ -303,12 +303,26 @@ QWidget *ConfigDialog::build_general_page()
 	gate(small_cp, "live");
 	ui_form->addRow(QString(), small_cp);
 
+	QComboBox *terminal_mode = new QComboBox();
+	terminal_mode->setToolTip(tr("How Devices -> Open terminal connects to a terminal device.\nThe built-in terminal needs no external program.\nThe external one runs a program of your choice."));
+	terminal_mode->addItem(tr("Built-in"), "builtin");
+	terminal_mode->addItem(tr("External"), "external");
+	QString cur_mode = QSettings().value("ui/terminalMode", "builtin").toString();
+	terminal_mode->setCurrentIndex(qMax(0, terminal_mode->findData(cur_mode)));
+
 	QLineEdit *terminal_cmd = new QLineEdit();
-	terminal_cmd->setToolTip(tr("Command launched by Devices -> Open terminal.\n{port} is replaced with the terminal device's TCP port.\nThe default uses the bundled emterm helper."));
+	terminal_cmd->setToolTip(tr("Command launched by Devices -> Open terminal when the external mode is selected.\n{port} is replaced with the terminal device's TCP port.\nThe default uses the bundled emterm helper."));
 	terminal_cmd->setText(QSettings().value("ui/terminalCommand", "xterm -e emterm {port}").toString());
+	terminal_cmd->setEnabled(cur_mode == "external");
 	connect(terminal_cmd, &QLineEdit::editingFinished, this, [terminal_cmd]() {
 		QSettings().setValue("ui/terminalCommand", terminal_cmd->text());
 	});
+	connect(terminal_mode, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [terminal_mode, terminal_cmd](int) {
+		QString mode = terminal_mode->currentData().toString();
+		QSettings().setValue("ui/terminalMode", mode);
+		terminal_cmd->setEnabled(mode == "external");
+	});
+	ui_form->addRow(tr("Terminal:"), terminal_mode);
 	ui_form->addRow(tr("Terminal command:"), terminal_cmd);
 
 	// Debugger monospace font (memory/disassembly/registers/...)
@@ -356,6 +370,48 @@ QWidget *ConfigDialog::build_general_page()
 	font_row->addWidget(font_change);
 	font_row->addWidget(font_reset);
 	ui_form->addRow(tr("Debugger font:"), font_row);
+
+	QLabel *term_font_label = new QLabel();
+	term_font_label->setToolTip(tr("Font used by the built-in terminal."));
+	auto describe_term_font = [this, term_font_label]() {
+		QSettings s;
+		const QString fam = s.value("ui/terminalFontFamily").toString();
+		const int size = s.value("ui/terminalFontSize", 0).toInt();
+		QFont f;
+		em400_apply_terminal_font(f);
+		const QString name = fam.isEmpty() ? QFontInfo(f).family() : fam;
+		const int pt = size > 0 ? size : QFontInfo(f).pointSize();
+		term_font_label->setText(fam.isEmpty() && size <= 0
+			? tr("%1 %2 pt (default)").arg(name).arg(pt)
+			: tr("%1 %2 pt").arg(name).arg(pt));
+	};
+	describe_term_font();
+	QPushButton *term_font_change = new QPushButton(tr("Change..."));
+	connect(term_font_change, &QPushButton::clicked, this, [this, describe_term_font]() {
+		QFont initial;
+		em400_apply_terminal_font(initial);
+		bool ok = false;
+		QFont chosen = QFontDialog::getFont(&ok, initial, this, tr("Terminal font"), QFontDialog::MonospacedFonts);
+		if (!ok) return;
+		QSettings s;
+		s.setValue("ui/terminalFontFamily", chosen.family());
+		s.setValue("ui/terminalFontSize", chosen.pointSize());
+		describe_term_font();
+		emit signal_terminal_font_changed();
+	});
+	QPushButton *term_font_reset = new QPushButton(tr("Reset"));
+	connect(term_font_reset, &QPushButton::clicked, this, [this, describe_term_font]() {
+		QSettings s;
+		s.remove("ui/terminalFontFamily");
+		s.remove("ui/terminalFontSize");
+		describe_term_font();
+		emit signal_terminal_font_changed();
+	});
+	QHBoxLayout *term_font_row = new QHBoxLayout();
+	term_font_row->addWidget(term_font_label, 1);
+	term_font_row->addWidget(term_font_change);
+	term_font_row->addWidget(term_font_reset);
+	ui_form->addRow(tr("Terminal font:"), term_font_row);
 
 	outer->addWidget(emu_box);
 	outer->addWidget(ui_box);

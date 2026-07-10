@@ -98,6 +98,34 @@
         <translation>Kwant emulacji:</translation>
     </message>
     <message>
+        <source>How Devices -&gt; Open terminal connects to a terminal device.
+The built-in terminal needs no external program.
+The external one runs a program of your choice.</source>
+        <translation>Sposób, w jaki Urządzenia -&gt; Otwórz terminal łączy się z terminalem.
+Wbudowany terminal nie wymaga zewnętrznego programu.
+Zewnętrzny uruchamia wybrany program.</translation>
+    </message>
+    <message>
+        <source>Built-in</source>
+        <translation>Wbudowany</translation>
+    </message>
+    <message>
+        <source>External</source>
+        <translation>Zewnętrzny</translation>
+    </message>
+    <message>
+        <source>Command launched by Devices -&gt; Open terminal when the external mode is selected.
+{port} is replaced with the terminal device&apos;s TCP port.
+The default uses the bundled emterm helper.</source>
+        <translation>Polecenie uruchamiane przez Urządzenia -&gt; Otwórz terminal, gdy wybrany jest tryb zewnętrzny.
+{port} jest zastępowane portem TCP terminala.
+Domyślne polecenie korzysta z dołączonego narzędzia emterm.</translation>
+    </message>
+    <message>
+        <source>Font used by the built-in terminal.</source>
+        <translation>Czcionka używana przez wbudowany terminal.</translation>
+    </message>
+    <message>
         <source>Sound output enabled</source>
         <translation>Wyjście dźwięku włączone</translation>
     </message>
@@ -218,6 +246,10 @@
         <translation>Mały pulpit techniczny</translation>
     </message>
     <message>
+        <source>Terminal:</source>
+        <translation>Terminal:</translation>
+    </message>
+    <message>
         <source>Terminal command:</source>
         <translation>Polecenie terminala:</translation>
     </message>
@@ -248,6 +280,14 @@
     <message>
         <source>Debugger font:</source>
         <translation>Czcionka debugera:</translation>
+    </message>
+    <message>
+        <source>Terminal font</source>
+        <translation>Czcionka terminala</translation>
+    </message>
+    <message>
+        <source>Terminal font:</source>
+        <translation>Czcionka terminala:</translation>
     </message>
     <message>
         <source>MEGA modules:</source>
@@ -372,14 +412,6 @@ Przekręć kluczyk, aby ją włączyć.</translation>
 When off, the system theme is used.</source>
         <translation>Nadaje całemu interfejsowi wygląd pulpitu technicznego MERA-400.
 Gdy wyłączone, używany jest motyw systemowy.</translation>
-    </message>
-    <message>
-        <source>Command launched by Devices -&gt; Open terminal.
-{port} is replaced with the terminal device&apos;s TCP port.
-The default uses the bundled emterm helper.</source>
-        <translation>Polecenie uruchamiane przez Urządzenia -&gt; Otwórz terminal.
-{port} jest zastępowany portem TCP terminala.
-Domyślnie używany jest dołączony pomocniczy program emterm.</translation>
     </message>
     <message>
         <source>GUI sounds</source>
@@ -714,8 +746,8 @@ Brak ramki: przerwanie niemaskowalne</translation>
         <translation>(brak nośników wymiennych)</translation>
     </message>
     <message>
-        <source>Open terminal (%1:%2)</source>
-        <translation>Otwórz terminal (%1:%2)</translation>
+        <source>Open terminal (%1)</source>
+        <translation>Otwórz terminal (%1)</translation>
     </message>
     <message>
         <source>Load...</source>
@@ -854,6 +886,49 @@ Sprawdź ustawienie w Konfiguracja -&gt; Ogólne.</translation>
     <message>
         <source>Copy %1</source>
         <translation>Kopiuj %1</translation>
+    </message>
+</context>
+<context>
+    <name>TerminalWindow</name>
+    <message>
+        <source>Terminal</source>
+        <translation>Terminal</translation>
+    </message>
+    <message>
+        <source>Reconnect</source>
+        <translation>Połącz ponownie</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Wyczyść</translation>
+    </message>
+    <message>
+        <source>Local echo</source>
+        <translation>Echo lokalne</translation>
+    </message>
+    <message>
+        <source>Font...</source>
+        <translation>Czcionka...</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Zamknij</translation>
+    </message>
+    <message>
+        <source>Terminal %1 port %2 (%3)</source>
+        <translation>Terminal %1 port %2 (%3)</translation>
+    </message>
+    <message>
+        <source>connected</source>
+        <translation>połączony</translation>
+    </message>
+    <message>
+        <source>disconnected</source>
+        <translation>rozłączony</translation>
+    </message>
+    <message>
+        <source>Terminal font</source>
+        <translation>Czcionka terminala</translation>
     </message>
 </context>
 <context>

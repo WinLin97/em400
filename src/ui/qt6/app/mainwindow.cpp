@@ -40,6 +40,7 @@
 #include "emdas.h"
 #include "theme.h"
 #include "configdialog.h"
+#include "terminalwindow.h"
 #include "libem400.h"
 
 // -----------------------------------------------------------------------
@@ -398,6 +399,12 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	settings.setValue("layout/geometry", saveGeometry());
 	settings.setValue("layout/windowState", saveState());
 
+	// unparented terminal windows won't close with us
+	// do it explicitly so they don't keep the app alive
+	for (const QPointer<TerminalWindow> &w : terminals) {
+		if (w) w->close();
+	}
+
 	e.stop();
 	event->accept();
 }
@@ -581,6 +588,7 @@ void MainWindow::open_config()
 	connect(config_dialog, &ConfigDialog::signal_machine_renamed, this, &MainWindow::update_window_title);
 	connect(config_dialog, &ConfigDialog::signal_gui_volume_changed, ui->cp, &ControlPanel::set_volume);
 	connect(config_dialog, &ConfigDialog::signal_mono_font_changed, this, &MainWindow::refresh_fonts);
+	connect(config_dialog, &ConfigDialog::signal_terminal_font_changed, this, &MainWindow::refresh_terminal_fonts);
 	connect(config_dialog, &ConfigDialog::signal_panel_theme_changed, this, &MainWindow::slot_panel_theme_changed);
 	connect(config_dialog, &ConfigDialog::signal_small_cp_changed, ui->actionSmall_Control_Panel, &QAction::setChecked);
 	config_dialog->show();
@@ -631,10 +639,11 @@ void MainWindow::populate_devices_menu(QMenu *menu)
 				sep = true;
 			}
 			int port = dev->terminal.port;
-			QAction *open = menu->addAction(tr("Open terminal (%1:%2)").arg(ch).arg(d));
+			QString label = QString("%1:%2").arg(ch).arg(d);
+			QAction *open = menu->addAction(tr("Open terminal (%1)").arg(label));
 			open->setEnabled(powered);
-			connect(open, &QAction::triggered, this, [this, port]() {
-				open_terminal(port);
+			connect(open, &QAction::triggered, this, [this, port, label]() {
+				open_terminal(port, label);
 			});
 		}
 	}
@@ -674,7 +683,39 @@ void MainWindow::add_media_slot(QMenu *menu, int chan, int dev, int slot, const 
 }
 
 // -----------------------------------------------------------------------
-void MainWindow::open_terminal(int port)
+void MainWindow::open_terminal(int port, const QString &label)
+{
+	if (QSettings().value("ui/terminalMode", "builtin").toString() == "external") {
+		launch_terminal_command(port);
+		return;
+	}
+
+	QPointer<TerminalWindow> &slot = terminals[port];
+	if (slot) {
+		slot->showNormal();
+		slot->raise();
+		slot->activateWindow();
+		return;
+	}
+
+	// no parent: terminals are independent peers of the main window, freely
+	// stackable above or below it (a parented top-level always stays on top)
+	TerminalWindow *w = new TerminalWindow(port, label);
+	w->setAttribute(Qt::WA_DeleteOnClose);
+	slot = w;
+	w->show();
+}
+
+// -----------------------------------------------------------------------
+void MainWindow::refresh_terminal_fonts()
+{
+	for (const QPointer<TerminalWindow> &w : terminals) {
+		if (w) w->apply_terminal_font();
+	}
+}
+
+// -----------------------------------------------------------------------
+void MainWindow::launch_terminal_command(int port)
 {
 	QString tmpl = QSettings().value("ui/terminalCommand", "xterm -e emterm {port}").toString();
 	tmpl.replace("{port}", QString::number(port));

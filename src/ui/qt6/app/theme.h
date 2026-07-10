@@ -25,6 +25,8 @@ class QFont;
 
 // Make `f` the monospace font. See theme.cpp for the platform defaults.
 void em400_apply_mono_font(QFont &f);
+// Make `f` the built-in terminal window's font
+void em400_apply_terminal_font(QFont &f);
 
 // Dark palette derived from the control-panel ("pulpit") artwork colors.
 QPalette em400_panel_palette();
