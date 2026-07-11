@@ -234,6 +234,23 @@ void DasmListing::snap_to_ic()
 }
 
 // -----------------------------------------------------------------------
+void DasmListing::connect_emu(EmuModel *emu)
+{
+	e = emu;
+	connect(e, &EmuModel::signal_power_changed, this, &DasmListing::slot_power_changed);
+}
+
+// -----------------------------------------------------------------------
+void DasmListing::slot_power_changed(bool on)
+{
+	// No IC on a powered-off machine, so forget its last location; that drops the
+	// "you are here" bar until the next power-on pushes a fresh IC.
+	if (on) return;
+	ic_addr = ic_nb = -1;
+	update();
+}
+
+// -----------------------------------------------------------------------
 void DasmListing::update_contents(int new_nb, int new_addr)
 {
 	ic_addr = new_addr;

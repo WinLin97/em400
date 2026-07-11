@@ -70,6 +70,18 @@ void MemListing::connect_emu(EmuModel *emu)
 	e = emu;
 	connect(e, &EmuModel::signal_state_changed, this, &MemListing::slot_state_changed);
 	connect(e, &EmuModel::signal_reg_changed, this, &MemListing::slot_reg_changed);
+	connect(e, &EmuModel::signal_power_changed, this, &MemListing::slot_power_changed);
+}
+
+// -----------------------------------------------------------------------
+void MemListing::slot_power_changed(bool on)
+{
+	// A powered-off machine has no state to point at, so drop any lingering
+	// selection box / in-progress edit rather than leaving it on the dead grid.
+	if (on) return;
+	cancel_edit();
+	clear_selection();
+	update();
 }
 
 // -----------------------------------------------------------------------

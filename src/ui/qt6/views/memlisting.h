@@ -74,6 +74,7 @@ public slots:
 private slots:
 	void slot_state_changed(int state);
 	void slot_reg_changed(int reg, uint16_t val);
+	void slot_power_changed(bool on);
 	void update_contents_no_nb(int new_line);
 
 signals:

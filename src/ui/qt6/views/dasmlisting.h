@@ -34,7 +34,7 @@ class DasmListing : public QWidget {
 public:
 	explicit DasmListing(QWidget *parent = nullptr);
 	~DasmListing();
-	void connect_emu(EmuModel *emu) { e = emu; }
+	void connect_emu(EmuModel *emu);
 	void refresh_font();
 
 public slots:
@@ -53,6 +53,7 @@ signals:
 
 private slots:
 	void update_contents_no_nb(int new_addr);
+	void slot_power_changed(bool on);
 
 private:
 	EmuModel *e;
