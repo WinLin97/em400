@@ -459,6 +459,21 @@ void MainWindow::apply_default_layout()
 }
 
 // -----------------------------------------------------------------------
+// Gray out everything in the Debugger menu except the master toggle when the
+// debugger is off - dock toggles, Reset Layout and Search memory only make
+// sense with the debugger enabled.
+void MainWindow::update_debugger_menu_enabled(bool on)
+{
+	for (QAction *a : ui->menuDebugger->actions()) {
+		if (a != ui->actionDebugger) {
+			a->setEnabled(on);
+		}
+	}
+	// searching memory additionally needs a powered machine
+	ui->actionSearch_memory->setEnabled(on && e.is_powered());
+}
+
+// -----------------------------------------------------------------------
 // Keep the master "Debugger" menu check in sync with the docks without letting
 // it re-fire slot_debugger_enabled_changed (which would clobber the layout).
 void MainWindow::sync_debugger_action()
@@ -472,6 +487,7 @@ void MainWindow::sync_debugger_action()
 	}
 	QSignalBlocker block(ui->actionDebugger);
 	ui->actionDebugger->setChecked(any);
+	update_debugger_menu_enabled(any);
 }
 
 // -----------------------------------------------------------------------
@@ -573,6 +589,7 @@ void MainWindow::update_docks_enabled(bool powered)
 	for (QDockWidget *d : docks) {
 		if (d->widget()) d->widget()->setEnabled(powered);
 	}
+	ui->actionSearch_memory->setEnabled(powered && ui->actionDebugger->isChecked());
 }
 
 // -----------------------------------------------------------------------
@@ -772,6 +789,7 @@ void MainWindow::slot_debugger_enabled_changed(bool state)
 	for (QDockWidget *d : docks) {
 		d->setVisible(state);
 	}
+	update_debugger_menu_enabled(state);
 	//ui->statusbar->setVisible(state);
 	for (int i=0 ; i<10 ; i++) qApp->processEvents(); // StackOverflow, I don't even...
 	adjustSize();

@@ -96,7 +96,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Debugger</string>
+    <string>Debugger enabled</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+D</string>

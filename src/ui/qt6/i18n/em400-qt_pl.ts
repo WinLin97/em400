@@ -650,6 +650,10 @@ Brak ramki: przerwanie niemaskowalne</translation>
         <translation>Mały pulpit techniczny</translation>
     </message>
     <message>
+        <source>Debugger enabled</source>
+        <translation>Debuger włączony</translation>
+    </message>
+    <message>
         <source>Ctrl+D</source>
         <translation>Ctrl+D</translation>
     </message>

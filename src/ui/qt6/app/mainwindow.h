@@ -105,6 +105,7 @@ private:
 	QDockWidget *register_dock(QWidget *view, const QString &title, const QString &objname);
 	void apply_default_layout();
 	void sync_debugger_action();
+	void update_debugger_menu_enabled(bool on);
 
 private slots:
 	void closeEvent(QCloseEvent* event);
