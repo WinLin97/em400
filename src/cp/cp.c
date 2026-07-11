@@ -77,6 +77,7 @@ void cp_lock_set(bool state)
 		// only the stop edge applies at unlock: START moved to STOP stops
 		// the machine, moved to START it starts nothing
 		if (!atomic_load_explicit(&start_switch, memory_order_relaxed)) {
+			atomic_store_explicit(&rALARM, false, memory_order_relaxed);
 			cpu_state_change(EM400_STATE_STOP, EM400_STATE_ANY);
 		}
 	}
@@ -91,6 +92,7 @@ void cp_start(bool state)
 	if (state) {
 		cpu_state_change(EM400_STATE_RUN, EM400_STATE_STOP);
 	} else {
+		atomic_store_explicit(&rALARM, false, memory_order_relaxed);
 		cpu_state_change(EM400_STATE_STOP, EM400_STATE_ANY);
 	}
 }
@@ -172,7 +174,7 @@ int cp_reg_select_get()
 // -----------------------------------------------------------------------
 bool cp_alarm_get()
 {
-	return rALARM;
+	return atomic_load_explicit(&rALARM, memory_order_relaxed);
 }
 
 // -----------------------------------------------------------------------

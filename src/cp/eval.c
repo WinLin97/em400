@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <ctype.h>
+#include <stdatomic.h>
 
 #include "cpu/cpu.h"
 #include "cpu/interrupts.h"
@@ -221,7 +222,7 @@ static int eval_est_eval_rz_bit(struct eval_est * n)
 // -----------------------------------------------------------------------
 static int eval_est_eval_alarm(const struct eval_est * n)
 {
-	return rALARM;
+	return atomic_load_explicit(&rALARM, memory_order_relaxed);
 }
 
 // -----------------------------------------------------------------------

@@ -72,7 +72,7 @@
 
 extern uint16_t r[8];
 extern uint16_t ic, ir, ac, ar, at;
-extern bool rALARM;
+extern atomic_bool rALARM;
 extern int mc;
 extern unsigned rm, nb;
 extern bool p, q, bs;

@@ -60,7 +60,7 @@ static atomic_uint cpu_state = EM400_STATE_OFF;
 
 uint16_t r[8];
 uint16_t ic, ir, ac, ar, at;
-bool rALARM;
+atomic_bool rALARM;
 int mc;
 unsigned rm, nb;
 bool p, q, bs;
@@ -278,7 +278,7 @@ static void cpu_mem_fail(bool barnb)
 	instruction_time_ns += TIME_NOANS_IF;
 	int_set(INT_NO_MEM);
 	if (!barnb) {
-		rALARM = true;
+		atomic_store_explicit(&rALARM, true, memory_order_relaxed);
 		if (nomem_stop) cpu_state_change(EM400_STATE_STOP, EM400_STATE_ANY);
 	}
 }
@@ -339,7 +339,7 @@ int cpu_init(const struct em400_host_cfg *host, const struct em400_machine_cfg *
 	SR_WRITE(0);
 	int_update_xmask();
 	int_clear_all();
-	rALARM = false;
+	atomic_store_explicit(&rALARM, false, memory_order_relaxed);
 	mc = 0;
 	cpu_mod_off();
 	cpu_state = cp_start_get() ? EM400_STATE_RUN : EM400_STATE_STOP;
@@ -399,7 +399,7 @@ void cpu_shutdown()
 	for (int i=0 ; i<8 ; i++) r[i] = 0;
 	ic = ir = ac = ar = at = 0;
 	w = 0;
-	rALARM = false;
+	atomic_store_explicit(&rALARM, false, memory_order_relaxed);
 	p = false;
 	mc = 0;
 	SR_WRITE(0);
@@ -445,7 +445,7 @@ void cpu_do_clear(bool clo)
 	int_clear_all();
 
 	if (clo) {
-		rALARM = false;
+		atomic_store_explicit(&rALARM, false, memory_order_relaxed);
 	}
 
 	// call even if logging is disabled - user may enable it later
