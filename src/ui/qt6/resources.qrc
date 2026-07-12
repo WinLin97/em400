@@ -49,10 +49,6 @@
         <file>sounds/rotary/r13.wav</file>
         <file>sounds/rotary/r14.wav</file>
         <file>sounds/rotary/r15.wav</file>
-        <file>sounds/ignition/lock-r.wav</file>
-        <file>sounds/ignition/off-l.wav</file>
-        <file>sounds/ignition/on-l.wav</file>
-        <file>sounds/ignition/on-r.wav</file>
         <file>sounds/switches/00-0.wav</file>
         <file>sounds/switches/00-1.wav</file>
         <file>sounds/switches/01-0.wav</file>
@@ -109,5 +105,9 @@
         <file>sounds/switches/stopn-1.wav</file>
         <file>sounds/switches/store-0.wav</file>
         <file>sounds/switches/store-1.wav</file>
+        <file>sounds/ignition/lock-on.wav</file>
+        <file>sounds/ignition/off-on.wav</file>
+        <file>sounds/ignition/on-lock.wav</file>
+        <file>sounds/ignition/on-off.wav</file>
     </qresource>
 </RCC>
