@@ -65,6 +65,8 @@ void appcfg_free_contents(struct appcfg *c);
 void appcfg_free(void);
 
 struct appcfg_machine *appcfg_machine_add(struct appcfg *c, const char *id, const char *name);
+struct appcfg_machine *appcfg_machine_add_default(struct appcfg *c, const char *id, const char *name);
+struct appcfg_machine *appcfg_machine_clone(struct appcfg *c, const char *src_id, const char *id, const char *name);
 void appcfg_machine_delete(struct appcfg *c, const char *id);
 struct appcfg_machine *appcfg_machine_find(struct appcfg *c, const char *id);
 struct em400_machine_cfg *appcfg_active_machine(struct appcfg *c);

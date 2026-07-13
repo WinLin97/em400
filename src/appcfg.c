@@ -209,6 +209,40 @@ struct appcfg_machine * appcfg_machine_add(struct appcfg *c, const char *id, con
 }
 
 // -----------------------------------------------------------------------
+struct appcfg_machine * appcfg_machine_add_default(struct appcfg *c, const char *id, const char *name)
+{
+	struct appcfg_machine *m = appcfg_machine_add(c, id, name);
+	if (!m) return NULL;
+	m->cfg = (struct em400_machine_cfg) {
+		.cpu = {
+			.awp = CFG_DEFAULT_CPU_AWP,
+			.mod = CFG_DEFAULT_CPU_MODIFICATIONS,
+			.user_io_illegal = CFG_DEFAULT_CPU_IO_USER_ILLEGAL,
+			.nomem_stop = CFG_DEFAULT_CPU_STOP_ON_NOMEM,
+			.clock_period_ms = CFG_DEFAULT_CPU_CLOCK_PERIOD_MS,
+		},
+		.mem = {
+			.elwro_modules = CFG_DEFAULT_MEMORY_ELWRO_MODULES,
+			.mega_modules = CFG_DEFAULT_MEMORY_MEGA_MODULES,
+			.os_segments = CFG_DEFAULT_MEMORY_HARDWIRED_SEGMENTS,
+		},
+	};
+	return m;
+}
+
+// -----------------------------------------------------------------------
+struct appcfg_machine * appcfg_machine_clone(struct appcfg *c, const char *src_id, const char *id, const char *name)
+{
+	struct appcfg_machine *src = appcfg_machine_find(c, src_id);
+	if (!src) return NULL;
+	int si = src - c->machines; // add() may realloc the array, re-resolve src by index
+	struct appcfg_machine *m = appcfg_machine_add(c, id, name);
+	if (!m) return NULL;
+	machine_cfg_copy(&m->cfg, &c->machines[si].cfg);
+	return m;
+}
+
+// -----------------------------------------------------------------------
 void appcfg_machine_delete(struct appcfg *c, const char *id)
 {
 	struct appcfg_machine *m = appcfg_machine_find(c, id);

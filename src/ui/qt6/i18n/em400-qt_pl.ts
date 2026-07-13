@@ -294,6 +294,34 @@ Domyślne polecenie korzysta z dołączonego narzędzia emterm.</translation>
         <translation>Uwielbiam gdy cewki piszczą</translation>
     </message>
     <message>
+        <source>Add...</source>
+        <translation>Dodaj...</translation>
+    </message>
+    <message>
+        <source>Duplicate...</source>
+        <translation>Powiel...</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Usuń</translation>
+    </message>
+    <message>
+        <source>The last machine cannot be deleted.</source>
+        <translation>Nie można usunąć ostatniej maszyny.</translation>
+    </message>
+    <message>
+        <source>Derived from the name, fixed at machine creation.
+Identifies the machine in the configuration file
+and for the -m command line option.</source>
+        <translation>Tworzony na podstawie nazwy, ustalany przy tworzeniu maszyny.
+Identyfikuje maszynę w pliku konfiguracji
+i dla opcji linii poleceń -m.</translation>
+    </message>
+    <message>
+        <source>Identifier:</source>
+        <translation>Identyfikator:</translation>
+    </message>
+    <message>
         <source>MEGA modules:</source>
         <translation>Moduły MEGA:</translation>
     </message>
@@ -386,6 +414,26 @@ Domyślne polecenie korzysta z dołączonego narzędzia emterm.</translation>
         <translation>%1: %2</translation>
     </message>
     <message>
+        <source>%1 (copy)</source>
+        <translation>%1 (kopia)</translation>
+    </message>
+    <message>
+        <source>Duplicate machine</source>
+        <translation>Powiel maszynę</translation>
+    </message>
+    <message>
+        <source>Add machine</source>
+        <translation>Dodaj maszynę</translation>
+    </message>
+    <message>
+        <source>Delete machine</source>
+        <translation>Usuń maszynę</translation>
+    </message>
+    <message>
+        <source>Delete machine &quot;%1&quot;?</source>
+        <translation>Usunąć maszynę &quot;%1&quot;?</translation>
+    </message>
+    <message>
         <source>Failed to save the configuration file.</source>
         <translation>Nie udało się zapisać pliku konfiguracji.</translation>
     </message>
@@ -420,6 +468,14 @@ Gdy wyłączone, używany jest motyw systemowy.</translation>
     <message>
         <source>CPU speaker</source>
         <translation>Głośniczek CPU</translation>
+    </message>
+    <message>
+        <source>Fixed at machine creation.
+Identifies the machine in the configuration file
+and for the -m command line option.</source>
+        <translation>Ustalany przy tworzeniu maszyny.
+Identyfikuje maszynę w pliku konfiguracji
+i dla opcji linii poleceń -m.</translation>
     </message>
     <message>
         <source>Preload program</source>

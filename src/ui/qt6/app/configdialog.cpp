@@ -89,6 +89,21 @@ void gate(QWidget *w, const QString &kind)
 	w->setProperty("gate", kind);
 }
 
+// [machine.<id>] must survive the INI round-trip: ASCII lowercase letters and
+// digits only. NFD strips most diacritics, but the Polish stroke (l/L) doesn't decompose.
+QString derive_machine_id(const QString &name)
+{
+	QString id;
+	for (QChar c : name.normalized(QString::NormalizationForm_D)) {
+		if ((c == QChar(u'ł')) || (c == QChar(u'Ł'))) {
+			id += QLatin1Char('l');
+		} else if ((c.unicode() < 128) && c.isLetterOrNumber()) {
+			id += c.toLower();
+		}
+	}
+	return id.isEmpty() ? QStringLiteral("machine") : id;
+}
+
 // free a device's owned union strings before its `type` is overwritten
 void free_device_strings(struct em400_device_cfg *dev)
 {
@@ -574,7 +589,22 @@ QWidget *ConfigDialog::build_machine_page()
 	if (act_idx >= 0) m_active->setCurrentIndex(act_idx);
 	connect(m_active, &QComboBox::currentIndexChanged, this, &ConfigDialog::slot_active_machine_changed);
 	gate(m_active, "cold");
-	id_form->addRow(tr("Active machine:"), m_active);
+
+	// not gate()d: Add must stay usable when no machine exists, while the generic
+	// pass disables all gated machine-page widgets then; see update_enabled_states()
+	m_add_machine = new QPushButton(tr("Add..."));
+	connect(m_add_machine, &QPushButton::clicked, this, [this]() { machine_add(false); });
+	m_dup_machine = new QPushButton(tr("Duplicate..."));
+	connect(m_dup_machine, &QPushButton::clicked, this, [this]() { machine_add(true); });
+	m_del_machine = new QPushButton(tr("Delete"));
+	connect(m_del_machine, &QPushButton::clicked, this, [this]() { machine_delete(); });
+
+	QHBoxLayout *active_row = new QHBoxLayout();
+	active_row->addWidget(m_active, 1);
+	active_row->addWidget(m_add_machine);
+	active_row->addWidget(m_dup_machine);
+	active_row->addWidget(m_del_machine);
+	id_form->addRow(tr("Active machine:"), active_row);
 
 	m_name = new QLineEdit();
 	connect(m_name, &QLineEdit::editingFinished, this, [this]() {
@@ -585,6 +615,11 @@ QWidget *ConfigDialog::build_machine_page()
 	});
 	gate(m_name, "live");
 	id_form->addRow(tr("Name:"), m_name);
+
+	m_id = new QLabel();
+	m_id->setEnabled(false);
+	m_id->setToolTip(tr("Fixed at machine creation.\nIdentifies the machine in the configuration file\nand for the -m command line option."));
+	id_form->addRow(tr("Identifier:"), m_id);
 	layout->addLayout(id_form);
 
 	QTabWidget *tabs = new QTabWidget();
@@ -1324,6 +1359,14 @@ void ConfigDialog::update_enabled_states()
 		w->setEnabled(enable);
 	}
 
+	m_add_machine->setEnabled(off);
+	m_dup_machine->setEnabled(off && have);
+	// zero machines is not a valid state: power-on has nothing to run and the
+	// saved file would round-trip through the legacy import at the next launch
+	bool last = work.n_machines <= 1;
+	m_del_machine->setEnabled(off && have && !last);
+	m_del_machine->setToolTip(last ? tr("The last machine cannot be deleted.") : QString());
+
 	io_update_buttons();
 }
 
@@ -1348,6 +1391,100 @@ void ConfigDialog::on_active_machine_changed(QString id)
 }
 
 // -----------------------------------------------------------------------
+QString ConfigDialog::unique_machine_id(const QString &name)
+{
+	QString base = derive_machine_id(name);
+	QString id = base;
+	for (int n=2 ; appcfg_machine_find(&work, id.toUtf8().constData()) ; n++) {
+		id = base + QString::number(n);
+	}
+	return id;
+}
+
+// -----------------------------------------------------------------------
+bool ConfigDialog::prompt_machine_identity(const QString &title, const QString &initial_name, QString &name, QString &id)
+{
+	QDialog dlg(this);
+	dlg.setWindowTitle(title);
+	QFormLayout *form = new QFormLayout(&dlg);
+	form->setVerticalSpacing(10);
+
+	QLineEdit *name_edit = new QLineEdit(initial_name);
+	name_edit->setMinimumWidth(220);
+	name_edit->selectAll();
+	form->addRow(tr("Name:"), name_edit);
+
+	QLabel *id_label = new QLabel();
+	id_label->setEnabled(false);
+	id_label->setToolTip(tr("Derived from the name, fixed at machine creation.\nIdentifies the machine in the configuration file\nand for the -m command line option."));
+	form->addRow(tr("Identifier:"), id_label);
+
+	auto update_id = [this, name_edit, id_label]() {
+		id_label->setText(unique_machine_id(name_edit->text()));
+	};
+	connect(name_edit, &QLineEdit::textChanged, &dlg, update_id);
+	update_id();
+
+	QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+	connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+	connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+	form->addRow(buttons);
+
+	if (dlg.exec() != QDialog::Accepted) return false;
+	name = name_edit->text().trimmed();
+	id = unique_machine_id(name_edit->text());
+	return true;
+}
+
+// -----------------------------------------------------------------------
+void ConfigDialog::machine_add(bool duplicate)
+{
+	if (duplicate && !machine) return;
+
+	QString initial;
+	if (duplicate) {
+		initial = tr("%1 (copy)").arg(machine->name ? QString(machine->name) : QString(machine->id));
+	}
+	QString src_id = machine ? QString(machine->id) : QString();
+
+	QString name, id;
+	QString title = duplicate ? tr("Duplicate machine") : tr("Add machine");
+	if (!prompt_machine_identity(title, initial, name, id)) return;
+
+	QByteArray id8 = id.toUtf8();
+	QByteArray name8 = name.toUtf8();
+	const char *cname = name.isEmpty() ? nullptr : name8.constData();
+	struct appcfg_machine *m;
+	if (duplicate) {
+		m = appcfg_machine_clone(&work, src_id.toUtf8().constData(), id8.constData(), cname);
+	} else {
+		m = appcfg_machine_add_default(&work, id8.constData(), cname);
+	}
+	if (!m) return;
+
+	// adding may realloc work.machines: `machine` is stale until the combo change
+	// cascades into slot_active_machine_changed, which re-resolves it
+	m_active->addItem(name.isEmpty() ? id : name, id);
+	m_active->setCurrentIndex(m_active->count() - 1);
+}
+
+// -----------------------------------------------------------------------
+void ConfigDialog::machine_delete()
+{
+	if (!machine) return;
+
+	QString label = machine->name ? QString(machine->name) : QString(machine->id);
+	if (QMessageBox::question(this, tr("Delete machine"), tr("Delete machine \"%1\"?").arg(label)) != QMessageBox::Yes) {
+		return;
+	}
+
+	QByteArray id8(machine->id);
+	machine = nullptr; // dangling after the delete; the combo cascade below re-resolves it
+	appcfg_machine_delete(&work, id8.constData());
+	m_active->removeItem(m_active->currentIndex());
+}
+
+// -----------------------------------------------------------------------
 void ConfigDialog::reload_machine_page()
 {
 	bool have = machine != nullptr;
@@ -1361,7 +1498,10 @@ void ConfigDialog::reload_machine_page()
 
 	update_enabled_states();
 
-	if (!have) return;
+	if (!have) {
+		m_id->clear();
+		return;
+	}
 
 	const struct em400_machine_cfg *cfg = &machine->cfg;
 
@@ -1379,6 +1519,7 @@ void ConfigDialog::reload_machine_page()
 	QSignalBlocker b_preload(m_preload);
 
 	m_name->setText(machine->name ? QString(machine->name) : QString());
+	m_id->setText(QString(machine->id));
 	m_awp->setChecked(cfg->cpu.awp);
 	m_mod->setChecked(cfg->cpu.mod);
 	m_user_io_illegal->setChecked(cfg->cpu.user_io_illegal);

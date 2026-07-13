@@ -27,6 +27,7 @@
 
 class QStackedWidget;
 class QListWidget;
+class QLabel;
 class QCheckBox;
 class QSpinBox;
 class QTreeWidget;
@@ -67,7 +68,9 @@ private:
 	QWidget *machine_page = nullptr;
 
 	QComboBox *m_active = nullptr;
+	QPushButton *m_add_machine = nullptr, *m_dup_machine = nullptr, *m_del_machine = nullptr;
 	QLineEdit *m_name = nullptr;
+	QLabel *m_id = nullptr;
 	QCheckBox *m_awp = nullptr, *m_mod = nullptr, *m_user_io_illegal = nullptr, *m_nomem_stop = nullptr;
 	QComboBox *m_clock_period = nullptr;
 	QSpinBox *m_elwro = nullptr, *m_mega = nullptr, *m_os_segments = nullptr;
@@ -92,6 +95,10 @@ private:
 
 	void add_section(const QString &title, const QString &icon_name, QWidget *page);
 	void reload_machine_page();
+	QString unique_machine_id(const QString &name);
+	bool prompt_machine_identity(const QString &title, const QString &initial_name, QString &name, QString &id);
+	void machine_add(bool duplicate);
+	void machine_delete();
 	void rebuild_log_components();
 	void apply_log_live();
 
