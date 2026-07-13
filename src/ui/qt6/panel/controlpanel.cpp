@@ -114,6 +114,12 @@ static const QUrl ignition_sounds_l[] = {
 	QUrl(SND_I "on-lock.wav"), // never happen
 };
 
+#define SND_P "qrc:/sounds/psu/"
+
+static const QUrl psu_sound_start = QUrl(SND_P "start.wav");
+static const QUrl psu_sound_stop = QUrl(SND_P "stop.wav");
+static const QUrl psu_sound_loop = QUrl(SND_P "loop.wav");
+
 // -----------------------------------------------------------------------
 ControlPanel::ControlPanel(QWidget *parent):
 	QWidget(parent)
@@ -149,6 +155,9 @@ ControlPanel::ControlPanel(QWidget *parent):
 	}
 	ignition = new Ignition(gfx, ignition_sounds_r, ignition_sounds_l, this);
 
+	psu = new Psu(psu_sound_start, psu_sound_stop, psu_sound_loop, this);
+	connect(ignition, &Ignition::signal_psu, psu, &Psu::slot_set_power);
+
 	// Route the control switches out through the panel's own named signals so
 	// callers talk to the panel's vocabulary instead of reaching into sw[].
 	connect(sw[SW_START], &Switch::signal_toggled, this, &ControlPanel::signal_start_toggled);
@@ -178,10 +187,17 @@ void ControlPanel::set_volume(int volume_percent)
 	// rotary and ignition samples are hotter than the switches; trim them to match
 	rotary->set_volume(linear_volume);
 	ignition->set_volume(linear_volume);
+	psu->set_volume(linear_volume);
 	keys->set_volume(linear_volume);
 	for (int i=0 ; i<SW_CNT ; i++) {
 		sw[i]->set_volume(linear_volume);
 	}
+}
+
+// -----------------------------------------------------------------------
+void ControlPanel::set_psu_sound(bool on)
+{
+	psu->set_enabled(on);
 }
 
 // -----------------------------------------------------------------------

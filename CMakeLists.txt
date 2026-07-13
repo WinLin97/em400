@@ -265,6 +265,7 @@ if (UI_QT)
 	list(APPEND SOURCES_EM400 src/ui/qt6/panel/binarykeys.h src/ui/qt6/panel/binarykeys.cpp)
 	list(APPEND SOURCES_EM400 src/ui/qt6/panel/rotary.h src/ui/qt6/panel/rotary.cpp)
 	list(APPEND SOURCES_EM400 src/ui/qt6/panel/ignition.h src/ui/qt6/panel/ignition.cpp)
+	list(APPEND SOURCES_EM400 src/ui/qt6/panel/psu.h src/ui/qt6/panel/psu.cpp)
 endif()
 
 # --- embedded default config (cfg/em400.ini as a NUL-terminated byte array)

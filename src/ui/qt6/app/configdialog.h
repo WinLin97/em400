@@ -124,6 +124,7 @@ public slots:
 signals:
 	void signal_machine_renamed();
 	void signal_gui_volume_changed(int volume);
+	void signal_psu_sound_changed(bool enabled);
 	void signal_mono_font_changed();
 	void signal_terminal_font_changed();
 	void signal_panel_theme_changed(bool enabled);

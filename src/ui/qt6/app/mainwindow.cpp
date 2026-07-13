@@ -360,6 +360,7 @@ void MainWindow::restore_layout()
 {
 	QSettings settings;
 	ui->cp->set_volume(settings.value("ui/guiVolume", 100).toInt());
+	ui->cp->set_psu_sound(settings.value("ui/psuSound", false).toBool());
 	// restore the small/large panel choice first; setChecked() fires the toggled
 	// signal which applies the crop (only when it actually differs from default)
 	ui->actionSmall_Control_Panel->setChecked(settings.value("layout/smallPanel", false).toBool());
@@ -608,6 +609,7 @@ void MainWindow::open_config()
 	connect(&cfg_ctl, &ConfigController::active_machine_changed, config_dialog, &ConfigDialog::on_active_machine_changed);
 	connect(config_dialog, &ConfigDialog::signal_machine_renamed, this, &MainWindow::update_window_title);
 	connect(config_dialog, &ConfigDialog::signal_gui_volume_changed, ui->cp, &ControlPanel::set_volume);
+	connect(config_dialog, &ConfigDialog::signal_psu_sound_changed, ui->cp, &ControlPanel::set_psu_sound);
 	connect(config_dialog, &ConfigDialog::signal_mono_font_changed, this, &MainWindow::refresh_fonts);
 	connect(config_dialog, &ConfigDialog::signal_terminal_font_changed, this, &MainWindow::refresh_terminal_fonts);
 	connect(config_dialog, &ConfigDialog::signal_panel_theme_changed, this, &MainWindow::slot_panel_theme_changed);

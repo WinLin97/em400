@@ -9,6 +9,7 @@
 #include "binarykeys.h"
 #include "rotary.h"
 #include "ignition.h"
+#include "psu.h"
 
 struct sw_desc {
 	QRect r;
@@ -48,9 +49,11 @@ public:
 	BusWLeds *wleds;
 	Rotary *rotary;
 	Ignition *ignition;
+	Psu *psu;
 
 	void dim(bool state);
 	void set_volume(int volume_percent);
+	void set_psu_sound(bool on);
 
 public slots:
 	void slot_state_changed(int state);

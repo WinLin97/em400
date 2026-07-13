@@ -109,5 +109,8 @@
         <file>sounds/ignition/off-on.wav</file>
         <file>sounds/ignition/on-lock.wav</file>
         <file>sounds/ignition/on-off.wav</file>
+        <file>sounds/psu/start.wav</file>
+        <file>sounds/psu/stop.wav</file>
+        <file>sounds/psu/loop.wav</file>
     </qresource>
 </RCC>

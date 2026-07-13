@@ -60,6 +60,7 @@ void Ignition::force_on()
 	power_on_timer.stop();
 	position = 1;
 	update();
+	emit signal_psu(true, false);
 	emit signal_power(true);
 }
 
@@ -72,6 +73,7 @@ void Ignition::snap_off()
 	power_on_timer.stop();
 	position = 0;
 	update();
+	emit signal_psu(false);
 }
 
 // -----------------------------------------------------------------------
@@ -111,9 +113,13 @@ void Ignition::step(int new_pos)
 {
 	if (new_pos > position) snd_r[new_pos].play();
 	else snd_l[new_pos].play();
-	if ((position == 0) && (new_pos == 1)) power_on_timer.start();
+	if ((position == 0) && (new_pos == 1)) {
+		power_on_timer.start();
+		emit signal_psu(true);
+	}
 	if (new_pos == 0) {
 		power_on_timer.stop();
+		emit signal_psu(false);
 		emit signal_power(false);
 	}
 	if (new_pos == 2) emit signal_locked(true);

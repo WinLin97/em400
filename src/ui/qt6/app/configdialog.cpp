@@ -447,6 +447,15 @@ QWidget *ConfigDialog::build_sound_page()
 	gui_volume_row->addWidget(gui_volume, 1);
 	gui_volume_row->addWidget(gui_volume_val);
 	gui_form->addRow(tr("Volume:"), gui_volume_row);
+
+	QCheckBox *coil_whine = new QCheckBox(tr("I love when coils whine"));
+	coil_whine->setChecked(QSettings().value("ui/psuSound", false).toBool());
+	connect(coil_whine, &QCheckBox::toggled, this, [this](bool on) {
+		QSettings().setValue("ui/psuSound", on);
+		emit signal_psu_sound_changed(on);
+	});
+	gate(coil_whine, "live");
+	gui_form->addRow(QString(), coil_whine);
 	outer->addWidget(gui_box);
 
 	QGroupBox *buzzer_box = new QGroupBox(tr("CPU speaker"));

@@ -290,6 +290,10 @@ Domyślne polecenie korzysta z dołączonego narzędzia emterm.</translation>
         <translation>Czcionka terminala:</translation>
     </message>
     <message>
+        <source>I love when coils whine</source>
+        <translation>Uwielbiam gdy cewki piszczą</translation>
+    </message>
+    <message>
         <source>MEGA modules:</source>
         <translation>Moduły MEGA:</translation>
     </message>
