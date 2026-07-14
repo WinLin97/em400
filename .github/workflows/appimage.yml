@@ -40,11 +40,15 @@ jobs:
 
       # jammy's Qt is 6.2, whose QSoundEffect rebuilds its GStreamer pipeline per
       # play and clips the attack. A newer Qt uses the self-contained FFmpeg
-      # backend (no GStreamer element bundling) and a persistent audio sink.
+      # backend (no GStreamer element bundling). Keep at 6.11+: older QSoundEffect
+      # reopens its pulse stream per play, which stutters panel sounds and cuts
+      # out the PSU noise loop (verified <= 6.7), or leaves an audible gap on the
+      # PSU loop -> stop-sample handoff (verified 6.8; 6.9/6.10 untested); 6.11
+      # keeps one persistent stream. Binary baseline: RHEL 9.6 / glibc 2.34.
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.7.3'
+          version: '6.11.1'
           modules: 'qtmultimedia'
           cache: true
 
