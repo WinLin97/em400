@@ -1,4 +1,4 @@
-; OPTS -c configs/meclo.ini
+; CONFIG configs/meclo.ini
 
 ; Check MECLO-400 PROM:
 ;  * reads work?

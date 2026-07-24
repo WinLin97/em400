@@ -1,4 +1,4 @@
-; OPTS -c configs/iotester.ini
+; CONFIG configs/iotester.ini
 
 ; Test if I/O channel properly sends Power Alarm interrupt
 

@@ -1,5 +1,3 @@
-; OPTS -c configs/minimal.ini
-
 ; MERA-400 system memory block (8k) test
 ; The original "T8K" test provided by the manufacturer.
 ; Disassembled and reformatted for better readability.

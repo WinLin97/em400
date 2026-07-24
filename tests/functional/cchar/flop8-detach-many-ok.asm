@@ -1,4 +1,4 @@
-; OPTS -c configs/flop8_empty.ini
+; CONFIG configs/flop8_empty.ini
 
 ; several detach commands in idle state is OK
 

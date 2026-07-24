@@ -1,5 +1,3 @@
-; OPTS -c configs/minimal.ini
-
 ; 17-bit byte addressing does not work on unmodified cpu
 
 	.cpu	mx16

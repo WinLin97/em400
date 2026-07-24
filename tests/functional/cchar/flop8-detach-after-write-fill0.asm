@@ -1,4 +1,4 @@
-; OPTS -c configs/flop8_empty.ini
+; CONFIG configs/flop8_empty.ini
 
 ; check if DETACH command fills sector being written with 0's
 

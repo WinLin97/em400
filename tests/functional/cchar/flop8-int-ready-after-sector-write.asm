@@ -1,4 +1,4 @@
-; OPTS -c configs/flop8_empty.ini
+; CONFIG configs/flop8_empty.ini
 
 ; validate operation sequence when writing sectors with no address set:
 ; write - EN - int - write - ok (x128, last write flushes sector and responds OK) - write - EN - int - ...

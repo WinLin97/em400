@@ -1,5 +1,3 @@
-; OPTS -c configs/minimal.ini
-
 ; does Elwro allocate 2 OS segments?
 
 	.include cpu.inc

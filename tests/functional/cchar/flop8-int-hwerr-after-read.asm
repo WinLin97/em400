@@ -1,4 +1,4 @@
-; OPTS -c configs/flop8-no-floppy.ini
+; CONFIG configs/flop8-no-floppy.ini
 
 ; trying to read a byte when no floppy is inserter should return HW error
 

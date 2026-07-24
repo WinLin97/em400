@@ -1,4 +1,4 @@
-; OPTS -c configs/iotester.ini
+; CONFIG configs/iotester.ini
 
 ; Test if I/O command bits come through as they should
 

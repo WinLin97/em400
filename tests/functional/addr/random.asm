@@ -1,4 +1,4 @@
-; OPTS -c configs/mega_max.ini
+; CONFIG configs/mega_max.ini
 ; PRECMD CLOCK ON
 
 ; Test addresing modes across available address space using random data.

@@ -1,5 +1,3 @@
-; OPTS -c configs/minimal.ini
-;
 ; MERA-400 floating point unit "TPZ" test.
 ;
 ; Based on the original test provided by the manufacturer.

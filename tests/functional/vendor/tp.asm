@@ -1,5 +1,3 @@
-; OPTS -c configs/minimal.ini
-;
 ; MERA-400 CPU test
 ;
 ; The original "TP" CPU test provided by the manufacturer.

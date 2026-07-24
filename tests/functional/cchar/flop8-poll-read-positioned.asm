@@ -1,4 +1,4 @@
-; OPTS -c configs/flop8_prewrite.ini
+; CONFIG configs/flop8_prewrite.ini
 
 ; read floppy contents with positioning (not using interruts)
 

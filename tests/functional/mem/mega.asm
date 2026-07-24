@@ -1,4 +1,4 @@
-; OPTS -c configs/mega_max.ini
+; CONFIG configs/mega_max.ini
 
 ; does MEGA allocation work?
 ; can we read from/write to allocated pages?

@@ -1,4 +1,4 @@
-; OPTS -c configs/soft_awp.ini
+; CONFIG configs/soft_awp.ini
 
 	.include cpu.inc
 

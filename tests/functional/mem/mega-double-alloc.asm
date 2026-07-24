@@ -1,4 +1,4 @@
-; OPTS -c configs/mega_max.ini
+; CONFIG configs/mega_max.ini
 
 ; does MEGA allow to allocate the same frame to two different pages?
 

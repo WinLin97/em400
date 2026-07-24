@@ -1,4 +1,4 @@
-; OPTS -c configs/uzdat.ini
+; CONFIG configs/uzdat.ini
 ; PRECMD CLOCK ON
 
 ; First, single write to UZDAT should switch transmission to OUT

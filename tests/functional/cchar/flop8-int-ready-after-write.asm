@@ -1,4 +1,4 @@
-; OPTS -c configs/flop8-no-floppy.ini
+; CONFIG configs/flop8-no-floppy.ini
 
 ; writing a byte when no floppy is inserted should not result in a HW error
 ; "ready" interrupt is sent as usual

@@ -1,4 +1,4 @@
-; OPTS -c configs/mod.ini
+; CONFIG configs/mod.ini
 ; PRECMD CLOCK ON
 
 ; Modified (MX-16) CPU has two additional instructions,

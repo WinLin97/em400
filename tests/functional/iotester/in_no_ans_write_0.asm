@@ -1,4 +1,4 @@
-; OPTS -c configs/iotester.ini
+; CONFIG configs/iotester.ini
 
 ; Test if IN command writes "0" to the register if there is no answer
 

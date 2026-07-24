@@ -1,4 +1,4 @@
-; OPTS -c configs/mega_max.ini
+; CONFIG configs/mega_max.ini
 
 ; does MEGA deallocation work?
 ; does reallocating the same segment preserves the data?

@@ -219,7 +219,7 @@ class TestResult:
 class TestBed:
 
     # --------------------------------------------------------------------
-    def __init__(self, emas, binary, blfile, benchmark_duration=0.5, failcmd=None, log="", options=None, timeout=5):
+    def __init__(self, emas, binary, blfile, benchmark_duration=0.5, failcmd=None, log="", options=None, timeout=5, config=None):
         self.emas = emas
         self.binary = binary
         self.failcmd = failcmd
@@ -228,6 +228,7 @@ class TestBed:
         self.e = None
         self.add_opts = None
         self.default_config = "configs/minimal.ini"
+        self.config_override = config
         self.bl = self.baseline(blfile)
         self.log = log
         self.options = options
@@ -300,12 +301,13 @@ class TestBed:
         precmd = []
         postcmd = []
         for l in open(source, "r"):
-            m = re.match(r"[ \t]*;[ \t]*(OPTS|XPCT|PRECMD|POSTCMD)[ \t]+(.+?)[ \t]*$", l)
+            m = re.match(r"[ \t]*;[ \t]*(CONFIG|XPCT|PRECMD|POSTCMD)[ \t]+(.+?)[ \t]*$", l)
             if not m:
                 continue
             directive, arg = m.groups()
-            if directive == "OPTS":
-                opts += arg.split()
+            if directive == "CONFIG":
+                if not self.config_override:
+                    opts += ["-c", arg]
             elif directive == "XPCT":
                 # split on the last colon, the expression itself may contain ':' ("[seg:addr]")
                 expr, sep, val = arg.rpartition(":")
@@ -330,7 +332,7 @@ class TestBed:
         try:
             opts, xpct, precmd, postcmd = self.__getparams(source)
             aout = self.__assembly(source)
-            self.__runemu(["-c", self.default_config] + opts)
+            self.__runemu(["-c", self.config_override or self.default_config] + opts)
             self.e.wait_for_stop()
             self.e.clear()
             self.e.load(0, 0, aout)
@@ -418,6 +420,7 @@ def collect_tests(i):
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-b", "--baseline", help="baseline test results")
+parser.add_argument("-c", "--config", help="override config file for all tests, ignoring per-test CONFIG directives")
 parser.add_argument("-e", "--emulator", help="emulator binary to run", default="../build/em400")
 parser.add_argument("-f", "--failcmd", help="command to run when test fails", action='append')
 parser.add_argument("-l", "--log", help="configure em400 logging", default="")
@@ -443,7 +446,7 @@ tests.sort()
 # run tests
 total = 0
 failed = 0
-tb = TestBed("emas", args.emulator, args.baseline, benchmark_duration=0.5, failcmd=args.failcmd, log=args.log, options=args.option, timeout=args.timeout)
+tb = TestBed("emas", args.emulator, args.baseline, benchmark_duration=0.5, failcmd=args.failcmd, log=args.log, options=args.option, timeout=args.timeout, config=args.config)
 for t in tests:
     if not DEBUG:
         if sys.stdout.isatty():

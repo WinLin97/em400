@@ -1,4 +1,4 @@
-; OPTS -c configs/iotester.ini
+; CONFIG configs/iotester.ini
 
 ; Test memory operations: read/write single word
 

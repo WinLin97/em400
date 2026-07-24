@@ -1,4 +1,4 @@
-; OPTS -c configs/no_user_mem.ini
+; CONFIG configs/no_user_mem.ini
 
 	.include cpu.inc
 

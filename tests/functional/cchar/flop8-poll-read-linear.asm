@@ -1,4 +1,4 @@
-; OPTS -c configs/flop8_prewrite.ini
+; CONFIG configs/flop8_prewrite.ini
 
 ; read flopy contents without setting initial address and verify results
 ; (without using interrupts)

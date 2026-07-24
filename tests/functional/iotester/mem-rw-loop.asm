@@ -1,4 +1,4 @@
-; OPTS -c configs/iotester-mega.ini
+; CONFIG configs/iotester-mega.ini
 ; PRECMD CLOCK ON
 
 	.cpu	mera400

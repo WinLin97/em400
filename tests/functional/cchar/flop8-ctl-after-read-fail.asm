@@ -1,4 +1,4 @@
-; OPTS -c configs/flop8_empty.ini
+; CONFIG configs/flop8_empty.ini
 
 ; control after read results in EN
 

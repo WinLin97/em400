@@ -1,5 +1,4 @@
-; the test must finish while MULTIX is still initializing - needs the real (long) init delay
-; OPTS -c configs/multix.ini -O general:timing=all
+; CONFIG configs/multix-timing-all.ini
 
 	hlt	077
 

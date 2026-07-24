@@ -1,4 +1,4 @@
-; OPTS -c configs/minimal-user-io-illegal.ini
+; CONFIG configs/minimal-user-io-illegal.ini
 ; in user mode, I/O instructions are illegal if "user_io_illegal = true"
 
 	.include cpu.inc

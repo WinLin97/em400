@@ -1,4 +1,4 @@
-; OPTS -c configs/winchester0.ini
+; CONFIG configs/winchester0.ini
 ; PRECMD CLOCK OFF
 
 	.cpu	mx16

@@ -1,4 +1,4 @@
-; OPTS -c configs/meclo.ini
+; CONFIG configs/meclo.ini
 
 ; MECLO-400 accepts all IN commands
 

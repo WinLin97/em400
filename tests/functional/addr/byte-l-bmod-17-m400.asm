@@ -1,4 +1,4 @@
-; OPTS -c configs/mod_mega_max.ini
+; CONFIG configs/mod_mega_max.ini
 
 ; test 16-bit byte addressing across process address space on vanilla (MERA-400) cpu
 

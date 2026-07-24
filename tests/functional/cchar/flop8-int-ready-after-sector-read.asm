@@ -1,4 +1,4 @@
-; OPTS -c configs/flop8_empty.ini
+; CONFIG configs/flop8_empty.ini
 
 ; validate operation sequence when reading sectors with no address set:
 ; read - EN - interrupt - read - ok - read - ok (x128) - read - EN - read - OK - ...

@@ -1,4 +1,4 @@
-; OPTS -c configs/meclo.ini
+; CONFIG configs/meclo.ini
 ; PRECMD CLOCK ON
 
 ; MECLO-400 stops sending interrupts after disabling them

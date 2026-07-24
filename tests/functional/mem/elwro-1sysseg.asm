@@ -1,4 +1,4 @@
-; OPTS -c configs/one-os-seg.ini
+; CONFIG configs/one-os-seg.ini
 
 ; does Elwro allocate 1 OS segments?
 

@@ -1,4 +1,4 @@
-; OPTS -c configs/multix.ini
+; CONFIG configs/multix.ini
 
 ; Test handling of illegal commands
 
