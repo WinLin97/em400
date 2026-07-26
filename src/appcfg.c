@@ -622,6 +622,38 @@ int appcfg_build_from_ini(em400_cfg *cfg)
 }
 
 // -----------------------------------------------------------------------
+// Append a legacy single-machine config as a new machine on top of an
+// already-built appcfg (used for XDG migration: fresh host/log/sound
+// defaults, only the machine itself comes from the old file), and make it
+// the active machine.
+int appcfg_import_legacy_machine(em400_cfg *legacy_cfg, const char *id, const char *name)
+{
+	char *use_id = dup_str(id);
+	int suffix = 1;
+	while (appcfg_machine_find(&appcfg, use_id)) {
+		free(use_id);
+		char buf[32];
+		snprintf(buf, sizeof(buf), "%s%d", id, ++suffix);
+		use_id = dup_str(buf);
+	}
+
+	struct appcfg_machine *m = appcfg_machine_add(&appcfg, use_id, name);
+	free(use_id);
+	if (!m) {
+		return em400_msg(EM400_MSG_ERROR, "Failed to allocate machine configuration");
+	}
+	if (build_machine(legacy_cfg, &m->cfg) != E_OK) {
+		em400_log("Failed to build imported machine I/O configuration");
+		return E_ERR;
+	}
+
+	free(appcfg.active_id);
+	appcfg.active_id = dup_str(m->id);
+
+	return E_OK;
+}
+
+// -----------------------------------------------------------------------
 static const char * bstr(bool b)
 {
 	return b ? "true" : "false";

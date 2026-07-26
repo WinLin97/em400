@@ -37,7 +37,7 @@ static void em400_msg_to_ui(em400_sev_t sev, const char *text)
 }
 
 // -----------------------------------------------------------------------
-static int em400_top_init(em400_cfg *cfg, const char *machine_id)
+static int em400_top_init(em400_cfg *cfg, const char *machine_id, const char *legacy_import)
 {
 	const char *log_file_name = cfg_getstr(cfg, "log:file", cfg_default_log_file());
 	em400_log_buf_type_t log_buf_type =
@@ -54,6 +54,19 @@ static int em400_top_init(em400_cfg *cfg, const char *machine_id)
 	if (appcfg_build_from_ini(cfg) != E_OK) {
 		em400_log("Failed to build EM400 configuration");
 		return E_ERR;
+	}
+
+	if (legacy_import) {
+		em400_cfg *legacy_cfg = cfg_load(legacy_import);
+		if (!legacy_cfg) {
+			return em400_msg(EM400_MSG_ERROR, "Failed to load legacy config file for import: %s", legacy_import);
+		}
+		em400_log("Importing machine configuration from legacy file: %s", legacy_import);
+		int rc = appcfg_import_legacy_machine(legacy_cfg, APPCFG_IMPORTED_MACHINE_ID, "Imported configuration");
+		cfg_free(legacy_cfg);
+		if (rc != E_OK) {
+			return E_ERR;
+		}
 	}
 
 	if (machine_id) {
@@ -280,7 +293,7 @@ int main(int argc, char** argv)
 
 	int print_help = 0;
 	char *config = NULL;
-	char *migrate_to = NULL;
+	char *legacy_path = NULL;
 	const char *program = NULL;
 	const char *machine_id = NULL;
 	const char *ui_name = NULL;
@@ -311,25 +324,25 @@ int main(int argc, char** argv)
 			goto done;
 		}
 		// first-run migration: no XDG config yet but a legacy one exists.
-		// Load the legacy file now; convert+write the new format to the XDG
-		// path after init (see below). Never touch the legacy file itself.
+		// Start from a fresh default config rather than converting the legacy
+		// file; the legacy machine is imported into it separately below.
+		// Never touch the legacy file itself.
 		if (access(config, F_OK) != 0) {
 			char *legacy = legacy_config_path();
 			if (legacy && (access(legacy, F_OK) == 0)) {
 				em400_msg(EM400_MSG_INFO,
-					"Migrating your configuration to the new location:\n"
-					"FROM: %s (now obsolete)\n"
-					"TO: %s",
+					"Creating a fresh configuration and importing your old machine setup:\n"
+					"OLD: %s (now obsolete, left untouched)\n"
+					"NEW: %s",
 					legacy, config);
-				migrate_to = config;
-				config = legacy;
+				legacy_path = legacy;
 			} else {
 				free(legacy);
-				em400_log("Creating a default configuration at: %s", config);
-				if (write_default_config(config) != E_OK) {
-					em400_msg(EM400_MSG_ERROR, "Failed to create default config file: %s", config);
-					goto done;
-				}
+			}
+			em400_log("Creating a default configuration at: %s", config);
+			if (write_default_config(config) != E_OK) {
+				em400_msg(EM400_MSG_ERROR, "Failed to create default config file: %s", config);
+				goto done;
 			}
 		}
 	}
@@ -345,18 +358,18 @@ int main(int argc, char** argv)
 		goto done;
 	}
 
-	if (em400_top_init(cfg, machine_id) != E_OK) {
+	if (em400_top_init(cfg, machine_id, legacy_path) != E_OK) {
 		goto done;
 	}
 	em400_log("Configuration loaded from: %s", config);
 
-	appcfg_set_path(migrate_to ? migrate_to : config);
+	appcfg_set_path(config);
 
-	// persist the converted new-format config; a failed migration is fatal
-	// so the user is not left booting on a config that did not get saved
-	if (migrate_to) {
-		em400_log("First-run migration: converting legacy config to new format");
-		if (appcfg_write(&appcfg, migrate_to) != E_OK) {
+	// persist the imported machine; a failed migration is fatal so the user
+	// is not left booting on a config that did not get saved
+	if (legacy_path) {
+		em400_log("First-run migration: saving imported machine to new config");
+		if (appcfg_write(&appcfg, config) != E_OK) {
 			goto done;
 		}
 	}
@@ -378,7 +391,7 @@ done:
 	em400_top_shutdown();
 	cfg_free(cfg);
 	free(config);
-	free(migrate_to);
+	free(legacy_path);
 	return return_code;
 }
 

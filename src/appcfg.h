@@ -55,6 +55,7 @@ extern "C" {
 #endif
 
 int appcfg_build_from_ini(em400_cfg *cfg);
+int appcfg_import_legacy_machine(em400_cfg *legacy_cfg, const char *id, const char *name);
 void appcfg_migrate_images(struct appcfg *c);
 bool appcfg_migrate_winchester_image(const char *src, char **use_path);
 int appcfg_write(const struct appcfg *c, const char *path);
