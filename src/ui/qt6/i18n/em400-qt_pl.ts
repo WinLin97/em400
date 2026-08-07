@@ -791,7 +791,7 @@ Brak ramki: przerwanie niemaskowalne</translation>
     </message>
     <message>
         <source> (powered off)</source>
-        <translation> (wyłączony)</translation>
+        <translation> (wyłączona)</translation>
     </message>
     <message>
         <source>Winchester (%1:%2)</source>
