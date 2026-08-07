@@ -39,6 +39,7 @@ public:
 
 public slots:
 	void update_contents(int nb, int addr);
+	void refresh();
 	void set_nb(int nb);
 	void set_follow(bool on);
 

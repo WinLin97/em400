@@ -36,6 +36,7 @@ public:
 
 public slots:
 	void update_contents(int nb, int addr) { listing->update_contents(nb, addr); }
+	void refresh() { listing->refresh(); }
 
 signals:
 	void signal_locate_in_memory(int nb, int addr);

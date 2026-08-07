@@ -267,6 +267,14 @@ void DasmListing::update_contents(int new_nb, int new_addr)
 }
 
 // -----------------------------------------------------------------------
+// Re-disassemble what's on screen: the listing is cached, so memory changed
+// behind our back (program load, external write) needs an explicit rebuild.
+void DasmListing::refresh()
+{
+	internal_update_contents();
+}
+
+// -----------------------------------------------------------------------
 void DasmListing::update_contents_no_nb(int new_addr)
 {
 	if (new_addr == caddr) return;

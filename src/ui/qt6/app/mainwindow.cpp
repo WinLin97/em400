@@ -119,7 +119,10 @@ void MainWindow::startup_power_on(const char *program)
 	if (program && !em400_load_os_image_path(program)) {
 		em400_msg(EM400_MSG_ERROR, "Preloading OS memory failed: %s", program);
 		ui->cp->ignition->force_off();
+		return;
 	}
+
+	dasm->refresh();
 }
 
 // -----------------------------------------------------------------------
