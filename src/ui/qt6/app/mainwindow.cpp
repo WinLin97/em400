@@ -34,6 +34,7 @@
 #include <QHBoxLayout>
 #include <QStyle>
 #include <QLabel>
+#include <QFontMetrics>
 #include <QFrame>
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
@@ -320,6 +321,7 @@ void MainWindow::build_statusbar()
 
 	mono_status_labels = {ips, flags_label, flags, status_label, q, bs, nb, mc};
 
+	pin_nb_width();
 	slot_ips_update(0);
 	update_r0_status(0);
 
@@ -339,6 +341,20 @@ void MainWindow::apply_statusbar_font()
 	QFont font;
 	em400_apply_mono_font(font);
 	for (QLabel *l : mono_status_labels) l->setFont(font);
+	pin_nb_width();
+}
+
+// -----------------------------------------------------------------------
+// NB is 1 or 2 digits wide; hold the label at the wider one, or the whole
+// status bar shifts every time a running program crosses NB=9/NB=10.
+void MainWindow::pin_nb_width()
+{
+	// measured, not computed from metrics: the rich-text layout adds its own
+	// margins and rounding, and being a pixel short still lets the label grow
+	const QString text = nb->text();
+	nb->setText("<span>NB=<b>15</b></span>");
+	nb->setFixedWidth(nb->sizeHint().width());
+	nb->setText(text);
 }
 
 // -----------------------------------------------------------------------

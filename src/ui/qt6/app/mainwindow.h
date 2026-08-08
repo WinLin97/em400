@@ -84,6 +84,7 @@ private:
 	void wire_connections();
 	void build_statusbar();
 	void apply_statusbar_font();
+	void pin_nb_width();
 	void refresh_fonts();
 	void restore_layout();
 
