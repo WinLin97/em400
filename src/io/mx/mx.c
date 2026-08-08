@@ -92,22 +92,29 @@ void mx_event_destructor(void *ptr)
 }
 
 // -----------------------------------------------------------------------
+bool mx_dev_compatible(int dev_type)
+{
+	switch (dev_type) {
+		case EM400_DEV_WINCHESTER:
+		case EM400_DEV_FLOP5:
+		case EM400_DEV_TERMINAL:
+			return true;
+		default:
+			return false;
+	}
+}
+
+// -----------------------------------------------------------------------
 int mx_connect_dev(chan_t *chan, int devnum, em400_dev_t *dev)
 {
 	LOG(L_MX, "Multix connecting device %i", devnum);
 	chan_mx_t *multix = (chan_mx_t *) chan;
-	struct mx_line *line = multix->plines + devnum;
 
-	switch (dev->type) {
-		case EM400_DEV_WINCHESTER:
-		case EM400_DEV_FLOP5:
-		case EM400_DEV_TERMINAL:
-			line->dev = dev;
-			break;
-		default:
-			LOG(L_MX, "Device type incompatibile with multix: %i", dev->type);
-			break;
+	if (!mx_dev_compatible(dev->type)) {
+		return LOGERR("Channel %i device %i: type %i unknown or incompatibile with multix", chan->num, devnum, dev->type);
 	}
+
+	multix->plines[devnum].dev = dev;
 
 	return E_OK;
 }

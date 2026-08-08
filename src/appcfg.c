@@ -71,6 +71,42 @@ static const char * timing_str(enum em400_timing t)
 }
 
 // -----------------------------------------------------------------------
+static const char * channel_type_name(enum em400_channel_types type)
+{
+	switch (type) {
+		case EM400_CHANNEL_CHAR: return "char";
+		case EM400_CHANNEL_MULTIX: return "multix";
+		case EM400_CHANNEL_IOTESTER: return "iotester";
+		default: return NULL;
+	}
+}
+
+// -----------------------------------------------------------------------
+static const char * device_type_name(enum em400_device_types type)
+{
+	switch (type) {
+		case EM400_DEV_TERMINAL: return "terminal";
+		case EM400_DEV_WINCHESTER: return "winchester";
+		case EM400_DEV_FLOP5: return "floppy";
+		case EM400_DEV_SP45DE: return "sp45de";
+		case EM400_DEV_RTCLOCK: return "rtclock";
+		default: return NULL;
+	}
+}
+
+// -----------------------------------------------------------------------
+static int check_dev_compat(int chnum, int devnum, const struct em400_channel_cfg *chan)
+{
+	const enum em400_device_types dev_type = chan->device[devnum].type;
+
+	if ((dev_type == EM400_DEV_NONE) || em400_channel_dev_compatible(chan->type, dev_type)) {
+		return E_OK;
+	}
+
+	return em400_msg(EM400_MSG_ERROR, "Device %i.%i: %s cannot be connected to a %s channel", chnum, devnum, device_type_name(dev_type), channel_type_name(chan->type));
+}
+
+// -----------------------------------------------------------------------
 static enum em400_timing build_timing(em400_cfg *cfg)
 {
 	const char *s = cfg_getstr(cfg, "general:timing", NULL);
@@ -379,6 +415,9 @@ static int build_io(em400_cfg *cfg, struct em400_machine_cfg *machine)
 				em400_log("Device %i:%i configuration error", chnum, devnum);
 				return E_ERR;
 			}
+			if (check_dev_compat(chnum, devnum, chan) != E_OK) {
+				return E_ERR;
+			}
 		}
 	}
 
@@ -487,6 +526,9 @@ static int build_io_new(em400_cfg *cfg, const char *sec, struct em400_machine_cf
 		for (int devnum=0 ; devnum<EM400_CHAN_MAX_DEV ; devnum++) {
 			if (build_device_new(cfg, sec, chnum, devnum, &chan->device[devnum]) != E_OK) {
 				em400_log("Device %i:%i configuration error", chnum, devnum);
+				return E_ERR;
+			}
+			if (check_dev_compat(chnum, devnum, chan) != E_OK) {
 				return E_ERR;
 			}
 		}
@@ -657,30 +699,6 @@ int appcfg_import_legacy_machine(em400_cfg *legacy_cfg, const char *id, const ch
 static const char * bstr(bool b)
 {
 	return b ? "true" : "false";
-}
-
-// -----------------------------------------------------------------------
-static const char * channel_type_name(enum em400_channel_types type)
-{
-	switch (type) {
-		case EM400_CHANNEL_CHAR: return "char";
-		case EM400_CHANNEL_MULTIX: return "multix";
-		case EM400_CHANNEL_IOTESTER: return "iotester";
-		default: return NULL;
-	}
-}
-
-// -----------------------------------------------------------------------
-static const char * device_type_name(enum em400_device_types type)
-{
-	switch (type) {
-		case EM400_DEV_TERMINAL: return "terminal";
-		case EM400_DEV_WINCHESTER: return "winchester";
-		case EM400_DEV_FLOP5: return "floppy";
-		case EM400_DEV_SP45DE: return "sp45de";
-		case EM400_DEV_RTCLOCK: return "rtclock";
-		default: return NULL;
-	}
 }
 
 // -----------------------------------------------------------------------

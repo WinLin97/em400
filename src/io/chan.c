@@ -27,14 +27,27 @@
 typedef chan_t * (*chan_create_f)(int ch_num);
 
 struct chan_kind {
+	chan_f_dev_compatible dev_compatible;
 	chan_create_f create;
 	int max_devices;
 };
 
 static const struct chan_kind chan_kinds[] = {
-	[EM400_CHANNEL_CHAR]		= { cchar_create, CCHAR_MAX_DEVICES },
-	[EM400_CHANNEL_IOTESTER]	= { it_create, 0 },
-	[EM400_CHANNEL_MULTIX]		= { mx_create, MX_LINE_CNT },
+	[EM400_CHANNEL_CHAR] = {
+		.dev_compatible = cchar_dev_compatible,
+		.create = cchar_create,
+		.max_devices = CCHAR_MAX_DEVICES,
+	},
+	[EM400_CHANNEL_IOTESTER] = {
+		.dev_compatible = it_dev_compatible,
+		.create = it_create,
+		.max_devices = 0,
+	},
+	[EM400_CHANNEL_MULTIX] = {
+		.dev_compatible = mx_dev_compatible,
+		.create = mx_create,
+		.max_devices = MX_LINE_CNT,
+	},
 };
 
 // -----------------------------------------------------------------------
@@ -44,6 +57,15 @@ int chan_max_devices(unsigned type)
 		return 0;
 	}
 	return chan_kinds[type].max_devices;
+}
+
+// -----------------------------------------------------------------------
+bool chan_dev_compatible(unsigned chan_type, unsigned dev_type)
+{
+	if ((chan_type >= EM400_CHANNEL_TYPE_COUNT) || !chan_kinds[chan_type].dev_compatible) {
+		return false;
+	}
+	return chan_kinds[chan_type].dev_compatible(dev_type);
 }
 
 // -----------------------------------------------------------------------

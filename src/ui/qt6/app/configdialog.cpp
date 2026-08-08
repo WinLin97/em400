@@ -821,8 +821,11 @@ QWidget *ConfigDialog::build_io_page()
 		if (io_sel_chan < 0 || !machine) return;
 		struct em400_channel_cfg *chan = &machine->cfg.channel[io_sel_chan];
 		chan->type = (enum em400_channel_types) io_chan_type->currentData().toInt();
-		// a smaller channel type can no longer hold devices in its high slots
-		for (int d = em400_channel_max_devices(chan->type) ; d < EM400_CHAN_MAX_DEV ; d++) {
+		// the new channel type may have fewer slots and take different device types
+		for (int d=0 ; d<EM400_CHAN_MAX_DEV ; d++) {
+			if ((d < em400_channel_max_devices(chan->type)) && em400_channel_dev_compatible(chan->type, chan->device[d].type)) {
+				continue;
+			}
 			free_device_strings(&chan->device[d]);
 			chan->device[d] = (struct em400_device_cfg){};
 		}
@@ -846,11 +849,6 @@ QWidget *ConfigDialog::build_io_page()
 	gate(io_dev_num, "cold");
 	dev_form->addRow(tr("Device number:"), io_dev_num);
 	io_dev_type = new QComboBox();
-	io_dev_type->addItem(dev_type_label(EM400_DEV_TERMINAL), EM400_DEV_TERMINAL);
-	io_dev_type->addItem(dev_type_label(EM400_DEV_WINCHESTER), EM400_DEV_WINCHESTER);
-	io_dev_type->addItem(dev_type_label(EM400_DEV_SP45DE), EM400_DEV_SP45DE);
-	io_dev_type->addItem(dev_type_label(EM400_DEV_FLOP5), EM400_DEV_FLOP5);
-	io_dev_type->addItem(dev_type_label(EM400_DEV_RTCLOCK), EM400_DEV_RTCLOCK);
 	connect(io_dev_type, &QComboBox::currentIndexChanged, this, [this]() {
 		if (io_sel_chan < 0 || io_sel_dev < 0 || !machine) return;
 		struct em400_device_cfg *dev = &machine->cfg.channel[io_sel_chan].device[io_sel_dev];
@@ -924,6 +922,18 @@ void ConfigDialog::io_build_tree()
 }
 
 // -----------------------------------------------------------------------
+void ConfigDialog::io_populate_dev_types(int chan_type)
+{
+	QSignalBlocker b(io_dev_type);
+	io_dev_type->clear();
+	for (int t=EM400_DEV_NONE+1 ; t<EM400_DEV_TYPE_COUNT ; t++) {
+		if (em400_channel_dev_compatible((enum em400_channel_types) chan_type, (enum em400_device_types) t)) {
+			io_dev_type->addItem(dev_type_label(t), t);
+		}
+	}
+}
+
+// -----------------------------------------------------------------------
 void ConfigDialog::io_selection_changed()
 {
 	QTreeWidgetItem *item = io_tree->currentItem();
@@ -964,6 +974,7 @@ void ConfigDialog::io_selection_changed()
 		}
 		io_dev_num->setCurrentIndex(io_dev_num->findData(io_sel_dev));
 
+		io_populate_dev_types(chan->type);
 		QSignalBlocker bt(io_dev_type);
 		int idx = io_dev_type->findData(chan->device[io_sel_dev].type);
 		io_dev_type->setCurrentIndex(idx >= 0 ? idx : 0);
@@ -1026,11 +1037,22 @@ void ConfigDialog::io_add_device()
 {
 	if (!machine || io_sel_chan < 0) return;
 	struct em400_channel_cfg *chan = &machine->cfg.channel[io_sel_chan];
+	enum em400_device_types def_type = EM400_DEV_NONE;
+	for (int t=EM400_DEV_NONE+1 ; t<EM400_DEV_TYPE_COUNT ; t++) {
+		if (em400_channel_dev_compatible(chan->type, (enum em400_device_types) t)) {
+			def_type = (enum em400_device_types) t;
+			break;
+		}
+	}
+	if (def_type == EM400_DEV_NONE) return;
+
 	int max = em400_channel_max_devices(chan->type);
 	for (int d=0 ; d<max ; d++) {
 		if (chan->device[d].type == EM400_DEV_NONE) {
-			chan->device[d].type = EM400_DEV_TERMINAL;
-			chan->device[d].terminal.speed = 9600;
+			chan->device[d].type = def_type;
+			if (def_type == EM400_DEV_TERMINAL) {
+				chan->device[d].terminal.speed = 9600;
+			}
 			io_sel_dev = d;
 			io_build_tree();
 			io_selection_changed();

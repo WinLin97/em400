@@ -82,6 +82,7 @@ struct mx_line {
 };
 
 chan_t * mx_create(int ch_num);
+bool mx_dev_compatible(int dev_type);
 
 int mx_int_enqueue(chan_mx_t *multix, int intr, int line);
 bool mx_mem_read(chan_mx_t *multix, int nb, uint16_t addr, uint16_t *data, int len);

@@ -187,6 +187,13 @@ void it_reset(chan_t *ch)
 }
 
 // -----------------------------------------------------------------------
+bool it_dev_compatible(int dev_type)
+{
+	(void) dev_type;
+	return false;
+}
+
+// -----------------------------------------------------------------------
 int it_connect_dev(chan_t *chan, int devnum, em400_dev_t *dev)
 {
 	return LOGERR("Channel %i device %i: I/O tester does not allow connecting devices, ignoring.", chan->num, devnum);

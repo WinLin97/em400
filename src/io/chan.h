@@ -43,6 +43,7 @@ typedef void (*chan_f_noarg)(chan_t *chan);
 typedef void (*chan_f_noarg)(chan_t *chan);
 typedef int (*chan_f_cmd)(chan_t *chan, int dir, uint16_t n, uint16_t *r);
 typedef int (*chan_f_connect_dev)(chan_t *chan, int devnum, em400_dev_t *dev);
+typedef bool (*chan_f_dev_compatible)(int dev_type);
 
 struct chan {
 	int num;
@@ -56,6 +57,7 @@ struct chan {
 
 chan_t * chan_create(unsigned num, unsigned type);
 int chan_max_devices(unsigned type);
+bool chan_dev_compatible(unsigned chan_type, unsigned dev_type);
 
 #endif
 

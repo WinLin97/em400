@@ -21,6 +21,7 @@
 #include "io/chan.h"
 
 chan_t * it_create(int chnum);
+bool it_dev_compatible(int dev_type);
 
 #endif
 

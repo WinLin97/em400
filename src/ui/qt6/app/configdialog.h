@@ -107,6 +107,7 @@ private:
 	void io_build_tree();
 	void io_selection_changed();
 	void io_rebuild_dev_params();
+	void io_populate_dev_types(int chan_type);
 	void io_update_buttons();
 	void io_add_channel();
 	void io_add_device();

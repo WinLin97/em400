@@ -231,6 +231,12 @@ int em400_channel_max_devices(enum em400_channel_types type)
 }
 
 // -----------------------------------------------------------------------
+bool em400_channel_dev_compatible(enum em400_channel_types chan_type, enum em400_device_types dev_type)
+{
+	return chan_dev_compatible(chan_type, dev_type);
+}
+
+// -----------------------------------------------------------------------
 int em400_dev_type(unsigned chnum, unsigned devnum)
 {
 	return io_dev_type(chnum, devnum);

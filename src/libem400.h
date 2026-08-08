@@ -45,6 +45,7 @@ enum em400_device_types {
 	EM400_DEV_WINCHESTER,
 	EM400_DEV_FLOP5,
 	EM400_DEV_RTCLOCK,
+	EM400_DEV_TYPE_COUNT
 };
 
 enum em400_channel_types {
@@ -209,6 +210,7 @@ bool em400_is_powered(void);
 // -----------------------------------------------------------------------
 
 int em400_channel_max_devices(enum em400_channel_types type);
+bool em400_channel_dev_compatible(enum em400_channel_types chan_type, enum em400_device_types dev_type);
 int em400_dev_type(unsigned chnum, unsigned devnum);
 int em400_dev_slot_count(unsigned chnum, unsigned devnum);
 bool em400_dev_can_eject(unsigned chnum, unsigned devnum, unsigned slot);

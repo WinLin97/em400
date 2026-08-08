@@ -174,6 +174,10 @@ int io_channel_init(unsigned chnum, unsigned channel_type)
 // -----------------------------------------------------------------------
 int io_dev_connect(int chnum, int devnum, em400_dev_t *dev)
 {
+	if (!chan_dev_compatible(io_chan[chnum]->type, dev->type)) {
+		return LOGERR("Channel %i device %i: device type %i cannot be connected to channel type %i", chnum, devnum, dev->type, io_chan[chnum]->type);
+	}
+
 	if (io_chan[chnum]->connect_dev(io_chan[chnum], devnum, dev) != E_OK) {
 		return E_ERR;
 	}

@@ -50,6 +50,19 @@ void cchar_reset(chan_t *chan);
 int cchar_cmd(chan_t *ch, int dir, uint16_t n_arg, uint16_t *r_arg);
 
 // -----------------------------------------------------------------------
+bool cchar_dev_compatible(int dev_type)
+{
+	switch (dev_type) {
+		case EM400_DEV_TERMINAL:
+		case EM400_DEV_SP45DE:
+		case EM400_DEV_RTCLOCK:
+			return true;
+		default:
+			return false;
+	}
+}
+
+// -----------------------------------------------------------------------
 int cchar_connect_dev(chan_t *chan, int devnum, em400_dev_t *dev)
 {
 	chan_char_t *cchar = (chan_char_t *) chan;
