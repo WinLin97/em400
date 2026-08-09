@@ -326,8 +326,8 @@ i dla opcji linii poleceń -m.</translation>
         <translation>Moduły MEGA:</translation>
     </message>
     <message>
-        <source>Hardwired OS segments:</source>
-        <translation>Segmenty systemowe (sprzętowe):</translation>
+        <source>Hardwired OS pages:</source>
+        <translation>Strony systemowe (sprzętowe):</translation>
     </message>
     <message>
         <source>Browse...</source>

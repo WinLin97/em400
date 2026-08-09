@@ -682,7 +682,7 @@ QWidget *ConfigDialog::build_machine_page()
 	connect(m_os_segments, &QSpinBox::valueChanged, this, [this](int v) {
 		if (machine) machine->cfg.mem.os_segments = v;
 	});
-	mem->addRow(tr("Hardwired OS segments:"), m_os_segments);
+	mem->addRow(tr("Hardwired OS pages:"), m_os_segments);
 
 	m_mega_prom = new QLineEdit();
 	m_mega_prom->setMinimumWidth(280);
