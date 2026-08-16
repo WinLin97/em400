@@ -143,15 +143,15 @@ void MainWindow::build_docks()
 	stack = new StackView(&e);
 
 	ui->menuDebugger->addSeparator();
-	dock_dasm  = register_dock(dasm,  tr("Disassembly"),      "dock_dasm");
-	dock_mem   = register_dock(mem,   tr("Memory"),           "dock_mem");
-	dock_uregs = register_dock(uregs, tr("User registers"),   "dock_uregs");
+	dock_dasm = register_dock(dasm, tr("Disassembly"), "dock_dasm");
+	dock_mem = register_dock(mem, tr("Memory"), "dock_mem");
+	dock_uregs = register_dock(uregs, tr("General-purpose registers"), "dock_uregs");
 	dock_sregs = register_dock(sregs, tr("System registers"), "dock_sregs");
-	dock_ints  = register_dock(ints,  tr("Interrupts"),       "dock_ints");
-	dock_map   = register_dock(map,   tr("Allocation map"),   "dock_map");
-	dock_brk   = register_dock(brk,   tr("Breakpoints"),      "dock_brk");
-	dock_watch = register_dock(watch, tr("Watches"),          "dock_watch");
-	dock_stack = register_dock(stack, tr("Stack"),            "dock_stack");
+	dock_ints = register_dock(ints, tr("Interrupts"), "dock_ints");
+	dock_map = register_dock(map, tr("Allocation map"), "dock_map");
+	dock_brk = register_dock(brk, tr("Breakpoints"), "dock_brk");
+	dock_watch = register_dock(watch, tr("Watches"), "dock_watch");
+	dock_stack = register_dock(stack, tr("Stack"), "dock_stack");
 
 }
 
@@ -242,7 +242,7 @@ void MainWindow::wire_connections()
 	connect(&e, &EmuModel::signal_power_on_failed, ui->cp->ignition, &Ignition::snap_off);
 	connect(ui->cp, &ControlPanel::signal_start_toggled, &e, &EmuModel::slot_cpu_start);
 	connect(ui->cp, &ControlPanel::signal_clear_clicked, &e, &EmuModel::slot_clear);
-	connect(ui->cp, &ControlPanel::signal_oprq_clicked,  &e, &EmuModel::slot_oprq);
+	connect(ui->cp, &ControlPanel::signal_oprq_clicked, &e, &EmuModel::slot_oprq);
 	connect(ui->cp, &ControlPanel::signal_cycle_clicked, &e, &EmuModel::slot_cycle);
 	connect(ui->cp, &ControlPanel::signal_load_clicked, &e, &EmuModel::slot_load);
 	connect(ui->cp, &ControlPanel::signal_fetch_clicked, &e, &EmuModel::slot_fetch);

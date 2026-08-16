@@ -726,8 +726,8 @@ Brak ramki: przerwanie niemaskowalne</translation>
         <translation>Pamięć</translation>
     </message>
     <message>
-        <source>User registers</source>
-        <translation>Rejestry użytkownika</translation>
+        <source>General-purpose registers</source>
+        <translation>Rejestry uniwersalne</translation>
     </message>
     <message>
         <source>System registers</source>
