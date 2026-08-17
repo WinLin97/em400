@@ -144,6 +144,8 @@ void EmuModel::sync_flags(bool force)
 {
 	bool alarm = em400_cp_alarm_led();
 	bool p = em400_cp_p_led();
+	bool q = em400_cp_q_led();
+	bool irq = em400_cp_irq_led();
 	int mc = em400_mc();
 
 	if (force || (alarm != last_alarm)) {
@@ -153,6 +155,14 @@ void EmuModel::sync_flags(bool force)
 	if (force || (p != last_p)) {
 		last_p = p;
 		emit signal_p_changed(p);
+	}
+	if (force || (q != last_q)) {
+		last_q = q;
+		emit signal_q_changed(q);
+	}
+	if (force || (irq != last_irq)) {
+		last_irq = irq;
+		emit signal_irq_changed(irq);
 	}
 	if (force || (mc != last_mc)) {
 		last_mc = mc;

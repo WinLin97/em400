@@ -96,7 +96,7 @@ private:
 	uint32_t last_rz = 0;
 	int last_map[16] = {0};
 	bool last_clock;
-	bool last_alarm, last_p;
+	bool last_alarm, last_p, last_q, last_irq;
 	int last_mc;
 	int last_brk_hit = -1;
 
@@ -142,6 +142,8 @@ signals:
 	void signal_cpu_ips_tick(unsigned long ips);
 	void signal_alarm_changed(bool alarm);
 	void signal_p_changed(bool p);
+	void signal_q_changed(bool q);
+	void signal_irq_changed(bool irq);
 	void signal_mc_changed(int mc);
 	void signal_clock_changed(bool clock);
 	// power lifecycle flipped (after init/shutdown settled); config gating listens

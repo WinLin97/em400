@@ -294,6 +294,24 @@ void ControlPanel::slot_set_p(bool state)
 }
 
 // -----------------------------------------------------------------------
+void ControlPanel::slot_set_q(bool state)
+{
+	led[LED_Q]->set(state);
+}
+
+// -----------------------------------------------------------------------
+void ControlPanel::slot_set_mc(bool state)
+{
+	led[LED_MC]->set(state);
+}
+
+// -----------------------------------------------------------------------
+void ControlPanel::slot_set_irq(bool state)
+{
+	led[LED_IRQ]->set(state);
+}
+
+// -----------------------------------------------------------------------
 void ControlPanel::slot_set_clock(bool state)
 {
 	led[LED_CLOCK]->set(state);

@@ -61,6 +61,9 @@ public slots:
 	void slot_set_powered(bool state);
 	void slot_set_alarm(bool state);
 	void slot_set_p(bool state);
+	void slot_set_q(bool state);
+	void slot_set_mc(bool state);
+	void slot_set_irq(bool state);
 	void slot_set_clock(bool state);
 	void slot_set_mode(bool state);
 	void slot_set_stopn(bool state);

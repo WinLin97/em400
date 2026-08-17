@@ -231,6 +231,9 @@ void MainWindow::wire_connections()
 	connect(&e, &EmuModel::signal_bus_w_changed, ui->cp->wleds, &BusWLeds::slot_set_value);
 	connect(&e, &EmuModel::signal_alarm_changed, ui->cp, &ControlPanel::slot_set_alarm);
 	connect(&e, &EmuModel::signal_p_changed, ui->cp, &ControlPanel::slot_set_p);
+	connect(&e, &EmuModel::signal_q_changed, ui->cp, &ControlPanel::slot_set_q);
+	connect(&e, &EmuModel::signal_mc_changed, ui->cp, [this](int mc){ ui->cp->slot_set_mc(mc != 0); });
+	connect(&e, &EmuModel::signal_irq_changed, ui->cp, &ControlPanel::slot_set_irq);
 	connect(&e, &EmuModel::signal_clock_changed, ui->cp, &ControlPanel::slot_set_clock);
 	connect(&e, &EmuModel::signal_power_changed, ui->cp, &ControlPanel::slot_set_powered);
 
