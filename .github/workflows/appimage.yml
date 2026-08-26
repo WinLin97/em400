@@ -3,7 +3,6 @@ name: AppImage
 on:
   push:
     tags: ['release-*']      # tagged release -> build + attach to the GitHub Release
-    branches: ['em400-next'] # TEMPORARY: exercise the workflow on the dev branch (remove before merge)
   workflow_dispatch: {}      # manual ad-hoc test build (artifact only)
 
 jobs:
