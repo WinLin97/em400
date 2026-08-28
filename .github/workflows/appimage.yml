@@ -30,8 +30,7 @@ jobs:
             gcc-13 g++-13 \
             libgl1-mesa-dev libegl1-mesa-dev \
             libuv1-dev \
-            libpulse-dev libasound2-dev \
-            flex libfl-dev bison \
+            flex bison \
             file desktop-file-utils \
             libxcb-cursor0 libxcb-xinerama0 libxkbcommon-x11-0 \
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
