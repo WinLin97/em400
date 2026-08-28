@@ -203,7 +203,7 @@ class TestResult:
                 pc = "(%+.1f%%)" % self.ips_percent
             else:
                 pc = ""
-            return "%-60s %7.3f %s%s" % (self.name, self.ips, pc, self.__elapsed())
+            return "%-60s %7.3f %s" % (self.name, self.ips, pc)
 
         if self.status in (self.PASS, self.FAIL):
             pf = { self.FAIL: "\033[91mFAILED\033[0m", self.PASS: "\033[92mPASSED\033[0m" }
@@ -277,8 +277,11 @@ class TestBed:
         with open(bfile) as f:
             for line in f:
                 t = line.split()
-                if len(t) == 2:
-                    baseline[t[0].strip()] = float(t[1].strip())
+                if len(t) >= 2:
+                    try:
+                        baseline[t[0]] = float(t[1])
+                    except ValueError:
+                        pass
 
         return baseline
 
