@@ -143,6 +143,15 @@ void int_clear(int int_num)
 }
 
 // -----------------------------------------------------------------------
+void int_clear_chan()
+{
+	LOG(L_INT, "Clear all channel interrupts");
+
+	atomic_fetch_and_explicit(&rz, ~RZ_CHAN_BITMASK, memory_order_acq_rel);
+	cpu_wake_up();
+}
+
+// -----------------------------------------------------------------------
 // Return the SR bit position (6-15) of the RM mask bit that gates the given
 // interrupt, or -1 if the interrupt is non-maskable (interrupt 0). RM group g
 // is held in rm bit (9-g), which sits at SR bit 15-g (SR = rm<<6 | ...).

@@ -79,6 +79,7 @@ bool int_pending();
 void int_set(int int_num);
 void int_clear(int int_num);
 void int_clear_all();
+void int_clear_chan();
 void int_put_nchan(uint16_t r);
 uint16_t int_get_nchan();
 uint32_t int_get_rz();

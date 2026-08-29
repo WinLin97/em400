@@ -462,14 +462,20 @@ static void cpu_do_bin()
 	int lg = 0;
 	uint16_t rb;
 
-	LOG(L_CPU, "Binary load initiated @ 0x%04x", ar);
+	LOG(L_CPU, "Binary load initiated, AR: 0x%04x", ar);
 K1:
-	// allow emulation to break free from failed loads with CLEAR
-	if (cpu_state_get() == EM400_STATE_CLO) return;
+	// allow emulation to break free from failed loads with CLEAR, honor OFF
+	int state = cpu_state_get();
+	if ((state == EM400_STATE_CLO) || (state == EM400_STATE_OFF)) return;
 
-	io_dispatch(IO_IN, ic, &w);
+	// TODO: real I/O devices speeds, real io dispatch speed
+	if (io_dispatch(IO_IN, ic, &w) == IO_NO) {
+		usleep(TIME_NOANS_IF/1000);
+	} else {
+		usleep(3); // OU time
+	}
 
-	// TODO: clear extenral interrupts?
+	int_clear_chan();
 	switch (lg) {
 		case 0:
 			rb = (w & 0b0000000000001111) << 12;
@@ -493,10 +499,6 @@ K1:
 	if (lg == 3) goto K2;
 
 K2:
-	// small visual feedback during binary load
-	// TODO: real I/O devices speeds
-	usleep(1);
-
 	w = rb;
 	cpu_mem_write_1(q, ar, w);
 	ar++;
