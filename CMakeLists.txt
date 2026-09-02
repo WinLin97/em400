@@ -126,14 +126,22 @@ set(SOURCES_EM400
 	src/io/iotester.h
 
 	src/io/dev/dev.h
+	src/io/dev/dirwatch.c
+	src/io/dev/dirwatch.h
+	src/io/dev/fsmeta.c
+	src/io/dev/fsmeta.h
 	src/io/dev/e4image.c
 	src/io/dev/e4image.h
 	src/io/dev/terminal.c
 	src/io/dev/terminal.h
 	src/io/dev/sp45de.c
 	src/io/dev/sp45de.h
+	src/io/dev/sp45de_dir.c
+	src/io/dev/sp45de_dir.h
 	src/io/dev/winchester.c
 	src/io/dev/winchester.h
+	src/io/dev/winchester_dir.c
+	src/io/dev/winchester_dir.h
 	src/io/dev/flop5.c
 	src/io/dev/flop5.h
 	src/io/dev/rtclock.h

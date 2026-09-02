@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include <sys/stat.h>
 
 #include "libem400.h"
 #include "log.h"
@@ -46,6 +47,9 @@ void sp45de_shutdown(em400_dev_t *dev)
 	for (int slot=0 ; slot<EM400_SP45DE_SLOT_COUNT ; slot++) {
 		if (sp45de->image[slot]) {
 			fclose(sp45de->image[slot]);
+		}
+		if (sp45de->dir[slot]) {
+			sp45de_dir_destroy(sp45de->dir[slot]);
 		}
 		free(sp45de->image_name[slot]);
 	}
@@ -88,6 +92,10 @@ int sp45de_blk_read(sp45de_t *sp45de, unsigned slot, unsigned track, unsigned se
 	sp45de->buf_pos = 0;
 
 	pthread_mutex_lock(&sp45de->media_mutex);
+	if (sp45de->dir[slot]) {
+		ret = (sp45de_dir_blk_rd(sp45de->dir[slot], track, sector, sp45de->buf) == 0) ? E_OK : E_ERR;
+		goto fin;
+	}
 	if (!sp45de->image[slot]) {
 		LOG(L_FLOP, "Read with no image in slot %i", slot);
 		goto fin;
@@ -120,6 +128,10 @@ int sp45de_blk_write(sp45de_t *sp45de, unsigned slot, unsigned track, unsigned s
 	sp45de->buf_pos = 0;
 
 	pthread_mutex_lock(&sp45de->media_mutex);
+	if (sp45de->dir[slot]) {
+		ret = (sp45de_dir_blk_wr(sp45de->dir[slot], track, sector, sp45de->buf) == 0) ? E_OK : E_ERR;
+		goto fin;
+	}
 	if (!sp45de->image[slot]) {
 		LOG(L_FLOP, "Write with no image in slot %i", slot);
 		goto fin;
@@ -230,12 +242,31 @@ static int sp45de_image_replace(em400_dev_t *dev, unsigned slot, const char *ima
 	if (sp45de->image[slot]) {
 		fclose(sp45de->image[slot]);
 		sp45de->image[slot] = NULL;
-		free(sp45de->image_name[slot]);
-		sp45de->image_name[slot] = NULL;
 	}
+	if (sp45de->dir[slot]) {
+		sp45de_dir_destroy(sp45de->dir[slot]);
+		sp45de->dir[slot] = NULL;
+	}
+	free(sp45de->image_name[slot]);
+	sp45de->image_name[slot] = NULL;
 
 	// no new image (NULL or empty), nothing to insert
 	if (!image_name || !*image_name) {
+		ret = E_OK;
+		goto fin;
+	}
+
+	// a directory path mounts as a synthetic IBM 3740 diskette (DOSBox-style)
+	struct stat pst;
+	if (stat(image_name, &pst) == 0 && S_ISDIR(pst.st_mode)) {
+		sp45de->dir[slot] = sp45de_dir_create(image_name,
+			SP45DE_TRACK_CNT, SP45DE_TRACK_LAST, SP45DE_SECTOR_PER_TRACK, SP45DE_BLK_SIZE);
+		if (!sp45de->dir[slot]) {
+			LOG(L_FLOP, "Cannot mount directory %s for slot %i", image_name, slot);
+			goto fin;
+		}
+		sp45de->image_name[slot] = strdup(image_name);
+		LOG(L_FLOP, "SP45DE slot %i backed by host directory: %s", slot, image_name);
 		ret = E_OK;
 		goto fin;
 	}

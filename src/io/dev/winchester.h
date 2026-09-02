@@ -22,6 +22,8 @@
 
 #include "io/dev/dev.h"
 
+#include "io/dev/winchester_dir.h"
+
 typedef struct winchester winchester_t;
 
 struct winchester {
@@ -29,9 +31,13 @@ struct winchester {
 
 	char *image_name;
 	FILE *image;
+
+	// Directory-backed mode: when set, all sector I/O goes through this
+	// backend instead of the plain image FILE. See winchester_dir.h.
+	winchester_dir_t *dir;
 };
 
-em400_dev_t * winchester_create(const char *image);
+em400_dev_t * winchester_create(const char *image, const char *dir);
 bool winchester_ready(em400_dev_t *dev);
 int winchester_sector_rd(winchester_t *winchester, uint8_t *buf, unsigned c, unsigned h, unsigned s);
 int winchester_sector_wr(winchester_t *winchester, uint8_t *buf, unsigned c, unsigned h, unsigned s);

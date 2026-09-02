@@ -23,6 +23,7 @@
 #include <pthread.h>
 
 #include "io/dev/dev.h"
+#include "io/dev/sp45de_dir.h"
 #include "libem400.h"
 
 #define SP45DE_TRACK_CNT 77
@@ -42,6 +43,7 @@ struct sp45de {
 	pthread_mutex_t media_mutex;
 	char *image_name[EM400_SP45DE_SLOT_COUNT];
 	FILE *image[EM400_SP45DE_SLOT_COUNT];
+	sp45de_dir_t *dir[EM400_SP45DE_SLOT_COUNT];	// directory-backed slot (host dir as 3740 diskette)
 	bool doors_locked;
 	uint8_t buf[SP45DE_BLK_SIZE];
 	unsigned buf_pos;

@@ -38,6 +38,8 @@ static long winchester_offset(unsigned c, unsigned h, unsigned s)
 // -----------------------------------------------------------------------
 int winchester_sector_rd(winchester_t *winchester, uint8_t *buf, unsigned c, unsigned h, unsigned s)
 {
+	if (winchester->dir) return winchester_dir_sector_rd(winchester->dir, buf, c, h, s);
+
 	if (!winchester->image) return DEV_STATUS_NOMEDIUM;
 
 	long offset = winchester_offset(c, h, s);
@@ -50,6 +52,8 @@ int winchester_sector_rd(winchester_t *winchester, uint8_t *buf, unsigned c, uns
 // -----------------------------------------------------------------------
 int winchester_sector_wr(winchester_t *winchester, uint8_t *buf, unsigned c, unsigned h, unsigned s)
 {
+	if (winchester->dir) return winchester_dir_sector_wr(winchester->dir, buf, c, h, s);
+
 	if (!winchester->image) return DEV_STATUS_NOMEDIUM;
 
 	long offset = winchester_offset(c, h, s);
@@ -62,7 +66,9 @@ int winchester_sector_wr(winchester_t *winchester, uint8_t *buf, unsigned c, uns
 // -----------------------------------------------------------------------
 bool winchester_ready(em400_dev_t *dev)
 {
-	return dev && ((winchester_t *) dev)->image != NULL;
+	if (!dev) return false;
+	winchester_t *winchester = (winchester_t *) dev;
+	return (winchester->dir != NULL) || (winchester->image != NULL);
 }
 
 // -----------------------------------------------------------------------
@@ -80,6 +86,7 @@ void winchester_shutdown(em400_dev_t *dev)
 	LOG(L_WNCH, "Winchester shutting down");
 
 	winchester_ioloop_teardown(winchester);
+	if (winchester->dir) winchester_dir_destroy(winchester->dir);
 	if (winchester->image) fclose(winchester->image);
 	free(winchester->image_name);
 	free(winchester);
@@ -107,7 +114,7 @@ const char * winchester_image(em400_dev_t *dev, unsigned slot)
 }
 
 // -----------------------------------------------------------------------
-em400_dev_t * winchester_create(const char *image_name)
+em400_dev_t * winchester_create(const char *image_name, const char *dir_name)
 {
 	LOG(L_WNCH, "Creating winchester");
 
@@ -128,7 +135,17 @@ em400_dev_t * winchester_create(const char *image_name)
 	winchester->base.eject = NULL;
 	winchester->base.image = winchester_image;
 
-	if (image_name && *image_name) {
+	if (dir_name && *dir_name) {
+		// Directory-backed mode: the disk is synthesized in RAM from a base
+		// image plus the host directory. All sector I/O goes through the
+		// backend; the plain image FILE is not used.
+		winchester->image_name = strdup(dir_name);
+		winchester->dir = winchester_dir_create(image_name, dir_name,
+			WINCH_CYLS, WINCH_HEADS, WINCH_SPT, WINCH_SECTOR_SIZE);
+		if (!winchester->dir) {
+			LOGWARN("Directory-backed winchester setup failed. Drive starts not ready (no winchester connected).");
+		}
+	} else if (image_name && *image_name) {
 		winchester->image_name = strdup(image_name);
 		LOG(L_WNCH, "Opening image: %s", winchester->image_name);
 

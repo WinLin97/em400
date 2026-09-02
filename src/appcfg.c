@@ -131,6 +131,7 @@ static void machine_free(struct em400_machine_cfg *machine)
 			switch (dev->type) {
 				case EM400_DEV_WINCHESTER:
 					free((void *) dev->winchester.image);
+					free((void *) dev->winchester.dir);
 					break;
 				case EM400_DEV_RTCLOCK:
 					free((void *) dev->rtclock.prom);
@@ -161,6 +162,7 @@ static void machine_cfg_copy(struct em400_machine_cfg *dst, const struct em400_m
 			switch (dev->type) {
 				case EM400_DEV_WINCHESTER:
 					dev->winchester.image = dup_str(dev->winchester.image);
+					dev->winchester.dir = dup_str(dev->winchester.dir);
 					break;
 				case EM400_DEV_RTCLOCK:
 					dev->rtclock.prom = dup_str(dev->rtclock.prom);
@@ -368,6 +370,7 @@ static int build_device(em400_cfg *cfg, int chnum, int devnum, struct em400_devi
 	} else if (!strcasecmp(dev_type_name, "winchester")) {
 		dev->type = EM400_DEV_WINCHESTER;
 		dev->winchester.image = dup_path(cfg_fgetstr(cfg, "dev%i.%i:image", chnum, devnum));
+		dev->winchester.dir = dup_path(cfg_fgetstr(cfg, "dev%i.%i:dir", chnum, devnum));
 	} else if (!strcasecmp(dev_type_name, "floppy")) {
 		dev->type = EM400_DEV_FLOP5;
 	} else if (!strcasecmp(dev_type_name, "floppy8")) {
@@ -477,6 +480,7 @@ static int build_device_new(em400_cfg *cfg, const char *sec, int chnum, int devn
 	} else if (!strcasecmp(dev_type_name, "winchester")) {
 		dev->type = EM400_DEV_WINCHESTER;
 		dev->winchester.image = dup_path(cfg_fgetstr(cfg, "%s:dev.%i.%i.image", sec, chnum, devnum));
+		dev->winchester.dir = dup_path(cfg_fgetstr(cfg, "%s:dev.%i.%i.dir", sec, chnum, devnum));
 	} else if (!strcasecmp(dev_type_name, "floppy")) {
 		dev->type = EM400_DEV_FLOP5;
 	} else if (!strcasecmp(dev_type_name, "sp45de") || !strcasecmp(dev_type_name, "floppy8")) {
@@ -719,6 +723,9 @@ static void write_device(FILE *f, int chnum, int devnum, const struct em400_devi
 		case EM400_DEV_WINCHESTER:
 			if (dev->winchester.image) {
 				fprintf(f, "dev.%i.%i.image = %s\n", chnum, devnum, dev->winchester.image);
+			}
+			if (dev->winchester.dir) {
+				fprintf(f, "dev.%i.%i.dir = %s\n", chnum, devnum, dev->winchester.dir);
 			}
 			break;
 		case EM400_DEV_SP45DE:

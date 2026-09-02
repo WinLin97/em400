@@ -110,6 +110,7 @@ void free_device_strings(struct em400_device_cfg *dev)
 	switch (dev->type) {
 	case EM400_DEV_WINCHESTER:
 		free((void *) dev->winchester.image);
+		free((void *) dev->winchester.dir);
 		break;
 	case EM400_DEV_RTCLOCK:
 		free((void *) dev->rtclock.prom);
