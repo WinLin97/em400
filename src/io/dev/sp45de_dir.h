@@ -26,10 +26,9 @@
 //
 // This is the diskette's *physical* format, for raw 3740 data exchange with
 // other systems and for loading standalone programs over the character channel.
-// It is NOT a CROOK-5 filesystem: CROOK-5's own 8" floppy storage is a CROOK-5
-// FS built by BOSS's `CFA` (baza=8, 480 logical sectors of 512 bytes, i.e. the
-// controller groups four 128-byte physical sectors into one), which this does
-// not produce - so CROOK-5 cannot attach this diskette as a disk area.
+// It is NOT a CROOK-5 filesystem - for a host directory CROOK-5 can attach and
+// read/write, use sp45de_crkdir (selected when the directory holds a
+// ".crookfs.ini").
 
 #include <stdint.h>
 #include <stdbool.h>

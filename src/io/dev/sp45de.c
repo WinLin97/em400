@@ -51,6 +51,9 @@ void sp45de_shutdown(em400_dev_t *dev)
 		if (sp45de->dir[slot]) {
 			sp45de_dir_destroy(sp45de->dir[slot]);
 		}
+		if (sp45de->crkdir[slot]) {
+			sp45de_crkdir_destroy(sp45de->crkdir[slot]);
+		}
 		free(sp45de->image_name[slot]);
 	}
 	pthread_mutex_unlock(&sp45de->media_mutex);
@@ -92,6 +95,10 @@ int sp45de_blk_read(sp45de_t *sp45de, unsigned slot, unsigned track, unsigned se
 	sp45de->buf_pos = 0;
 
 	pthread_mutex_lock(&sp45de->media_mutex);
+	if (sp45de->crkdir[slot]) {
+		ret = (sp45de_crkdir_blk_rd(sp45de->crkdir[slot], track, sector, sp45de->buf) == 0) ? E_OK : E_ERR;
+		goto fin;
+	}
 	if (sp45de->dir[slot]) {
 		ret = (sp45de_dir_blk_rd(sp45de->dir[slot], track, sector, sp45de->buf) == 0) ? E_OK : E_ERR;
 		goto fin;
@@ -128,6 +135,10 @@ int sp45de_blk_write(sp45de_t *sp45de, unsigned slot, unsigned track, unsigned s
 	sp45de->buf_pos = 0;
 
 	pthread_mutex_lock(&sp45de->media_mutex);
+	if (sp45de->crkdir[slot]) {
+		ret = (sp45de_crkdir_blk_wr(sp45de->crkdir[slot], track, sector, sp45de->buf) == 0) ? E_OK : E_ERR;
+		goto fin;
+	}
 	if (sp45de->dir[slot]) {
 		ret = (sp45de_dir_blk_wr(sp45de->dir[slot], track, sector, sp45de->buf) == 0) ? E_OK : E_ERR;
 		goto fin;
@@ -247,6 +258,10 @@ static int sp45de_image_replace(em400_dev_t *dev, unsigned slot, const char *ima
 		sp45de_dir_destroy(sp45de->dir[slot]);
 		sp45de->dir[slot] = NULL;
 	}
+	if (sp45de->crkdir[slot]) {
+		sp45de_crkdir_destroy(sp45de->crkdir[slot]);
+		sp45de->crkdir[slot] = NULL;
+	}
 	free(sp45de->image_name[slot]);
 	sp45de->image_name[slot] = NULL;
 
@@ -256,18 +271,34 @@ static int sp45de_image_replace(em400_dev_t *dev, unsigned slot, const char *ima
 		goto fin;
 	}
 
-	// a directory path mounts as a synthetic raw IBM 3740 diskette (DOSBox-style)
-	// - for 3740 data exchange / standalone-program loading, not a CROOK-5 FS
+	// A directory path mounts as a synthetic diskette (DOSBox-style). If it holds
+	// a ".crookfs.ini" it is served as a CROOK-5 filesystem area (CROOK can `LOD`
+	// it and list/read/write files); otherwise as a raw IBM 3740 diskette (for
+	// 3740 data exchange / standalone-program loading).
 	struct stat pst;
 	if (stat(image_name, &pst) == 0 && S_ISDIR(pst.st_mode)) {
-		sp45de->dir[slot] = sp45de_dir_create(image_name,
-			SP45DE_TRACK_CNT, SP45DE_TRACK_LAST, SP45DE_SECTOR_PER_TRACK, SP45DE_BLK_SIZE);
-		if (!sp45de->dir[slot]) {
-			LOG(L_FLOP, "Cannot mount directory %s for slot %i", image_name, slot);
-			goto fin;
+		char sidecar[2048];
+		snprintf(sidecar, sizeof(sidecar), "%s/.crookfs.ini", image_name);
+		bool as_crookfs = (stat(sidecar, &pst) == 0);
+
+		if (as_crookfs) {
+			sp45de->crkdir[slot] = sp45de_crkdir_create(image_name,
+				SP45DE_TRACK_CNT, SP45DE_SECTOR_PER_TRACK, SP45DE_BLK_SIZE);
+			if (!sp45de->crkdir[slot]) {
+				LOG(L_FLOP, "Cannot mount directory %s (CROOK-5 FS) for slot %i", image_name, slot);
+				goto fin;
+			}
+		} else {
+			sp45de->dir[slot] = sp45de_dir_create(image_name,
+				SP45DE_TRACK_CNT, SP45DE_TRACK_LAST, SP45DE_SECTOR_PER_TRACK, SP45DE_BLK_SIZE);
+			if (!sp45de->dir[slot]) {
+				LOG(L_FLOP, "Cannot mount directory %s for slot %i", image_name, slot);
+				goto fin;
+			}
 		}
 		sp45de->image_name[slot] = strdup(image_name);
-		LOG(L_FLOP, "SP45DE slot %i backed by host directory: %s", slot, image_name);
+		LOG(L_FLOP, "SP45DE slot %i backed by host directory: %s (%s)", slot, image_name,
+			as_crookfs ? "CROOK-5 FS" : "IBM 3740");
 		ret = E_OK;
 		goto fin;
 	}

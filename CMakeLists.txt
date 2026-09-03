@@ -137,6 +137,9 @@ set(SOURCES_EM400
 	src/io/dev/sp45de.c
 	src/io/dev/sp45de.h
 	src/io/dev/sp45de_dir.c
+	src/io/dev/sp45de_dir.h
+	src/io/dev/sp45de_crkdir.c
+	src/io/dev/sp45de_crkdir.h
 	src/io/dev/winchester.c
 	src/io/dev/winchester.h
 	src/io/dev/crook5fs.c
