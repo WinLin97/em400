@@ -320,6 +320,11 @@ static void * uzfx_worker_loop(void *ptr)
 
 		if (uzfx->state != state) {
 			LOG(L_UZFX, "Worker changed state to: %s", uzfx_state_names[uzfx->state]);
+			// operation finished: let the drive spin down so the doors unlock
+			// (a real SP45DE stops the motor a couple seconds after going idle)
+			if (uzfx->state == UZFX_ST0_IDLE) {
+				sp45de_motor_stop(uzfx->sp45de);
+			}
 		}
 
 		if (interrupt != UZFX_INT_NONE) {
@@ -393,6 +398,7 @@ static int uzfx_cmd_read(cchar_unit_t *unit, uint16_t *r_arg)
 				// last byte, set next sector address
 				uzfx_address_advance(uzfx);
 				uzfx->state = UZFX_ST0_IDLE;
+				sp45de_motor_stop(uzfx->sp45de);  // idle: allow the doors to unlock
 			}
 			*r_arg = c;
 			uzfx->interrupts = UZFX_INT_NONE;

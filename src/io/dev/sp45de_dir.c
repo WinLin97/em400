@@ -35,6 +35,9 @@
 // Files: contiguous extents on tracks 1..T-1, addressed "TTSSS" (track, sector).
 // Data records are stored raw, one host byte stream padded to the sector; the
 // HDR1 record length is set to the sector size.
+//
+// This models the SP45DE's physical 3740 format only. It is not a CROOK-5
+// filesystem and CROOK-5 will not attach it as a disk area - see sp45de_dir.h.
 
 #define IDX_ERMAP   5
 #define IDX_VOL1    7

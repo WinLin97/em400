@@ -23,6 +23,13 @@
 // IBM 3740 / ISO 6596 basic-data-exchange diskette (77 tracks x 26 sectors x
 // 128 bytes, single-sided). Track 0 is the index (ERMAP, VOL1, HDR1 records);
 // files occupy contiguous extents on tracks 1..76. Changes flow both ways.
+//
+// This is the diskette's *physical* format, for raw 3740 data exchange with
+// other systems and for loading standalone programs over the character channel.
+// It is NOT a CROOK-5 filesystem: CROOK-5's own 8" floppy storage is a CROOK-5
+// FS built by BOSS's `CFA` (baza=8, 480 logical sectors of 512 bytes, i.e. the
+// controller groups four 128-byte physical sectors into one), which this does
+// not produce - so CROOK-5 cannot attach this diskette as a disk area.
 
 #include <stdint.h>
 #include <stdbool.h>

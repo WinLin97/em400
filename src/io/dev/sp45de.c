@@ -256,7 +256,8 @@ static int sp45de_image_replace(em400_dev_t *dev, unsigned slot, const char *ima
 		goto fin;
 	}
 
-	// a directory path mounts as a synthetic IBM 3740 diskette (DOSBox-style)
+	// a directory path mounts as a synthetic raw IBM 3740 diskette (DOSBox-style)
+	// - for 3740 data exchange / standalone-program loading, not a CROOK-5 FS
 	struct stat pst;
 	if (stat(image_name, &pst) == 0 && S_ISDIR(pst.st_mode)) {
 		sp45de->dir[slot] = sp45de_dir_create(image_name,

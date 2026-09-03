@@ -43,7 +43,7 @@ struct sp45de {
 	pthread_mutex_t media_mutex;
 	char *image_name[EM400_SP45DE_SLOT_COUNT];
 	FILE *image[EM400_SP45DE_SLOT_COUNT];
-	sp45de_dir_t *dir[EM400_SP45DE_SLOT_COUNT];	// directory-backed slot (host dir as 3740 diskette)
+	sp45de_dir_t *dir[EM400_SP45DE_SLOT_COUNT];	// directory-backed slot (host dir as a raw 3740 diskette, not a CROOK-5 FS)
 	bool doors_locked;
 	uint8_t buf[SP45DE_BLK_SIZE];
 	unsigned buf_pos;
