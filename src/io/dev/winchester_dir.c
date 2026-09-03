@@ -35,9 +35,12 @@
 
 // Directory-backed Winchester ("mount" a host directory as a CROOK-5 disk).
 //
-// The whole disk lives in RAM as a copy of a base CROOK-5 image; the files of a
-// host directory are overlaid into the CROOK-5 filesystem of the first (boot)
-// disk area, under the LIBRAR directory. Changes flow both ways:
+// The whole disk lives in RAM. Two ways to get the CROOK-5 structure:
+//   - with a base image: load it, overlay the host dir into its first data area
+//     (A0==0) that has a LIBRAR - a bootable image keeps its system area intact.
+//   - without any image: synthesize a fresh, empty CROOK-5 data area from scratch
+//     (synth_data_area(), no file dependency at all).
+// The host files are overlaid under that area's LIBRAR. Changes flow both ways:
 //   host  -> guest : polled (mtime/size), re-overlaid into the RAM image
 //   guest -> host  : after CROOK finishes a write, changed/created/deleted
 //                    files under LIBRAR (that aren't part of the base image)
@@ -61,7 +64,7 @@ struct tracked {
 	char name[MAX_NAME + 1];
 	char ext[MAX_EXT + 1];
 	uint16_t w0, w1, ew;              // R40 name / ext words
-	unsigned start, nsec;            // where it lives in the RAM image (area 0)
+	unsigned start, nsec;            // where its data lives in the RAM image (area-relative)
 	long host_size;
 	long host_mtime;
 	uint32_t crc;                    // CRC32 of the file data in the image
@@ -74,6 +77,7 @@ struct winchester_dir {
 	unsigned cyls, heads, spt, ssize;
 	unsigned spare;                    // sectors hidden from CROOK (cylinder 0)
 
+	unsigned area_start;              // logical sector of the CROOK area we overlay into
 	bool sync;                         // two-way sync active (dir usable)
 	struct tracked *files;             // tracked host files
 	unsigned nfiles, cap;
@@ -721,7 +725,7 @@ static void maybe_sync(winchester_dir_t *wd)
 
 	if (wd->guest_dirty && (t - wd->last_write) >= SYNC_QUIESCE_SECS) {
 		struct c5_area a;
-		if (area_open(&a, wd, 0)) guest_to_host(wd, &a);
+		if (area_open(&a, wd, wd->area_start)) guest_to_host(wd, &a);
 		wd->guest_dirty = false;
 		wd->last_poll = t;
 		return;
@@ -733,12 +737,12 @@ static void maybe_sync(winchester_dir_t *wd)
 		    && (t - (long) atomic_load(&wd->host_evt)) >= SYNC_QUIESCE_SECS) {
 			atomic_store(&wd->host_dirty, false);
 			struct c5_area a;
-			if (area_open(&a, wd, 0)) host_to_guest(wd, &a);
+			if (area_open(&a, wd, wd->area_start)) host_to_guest(wd, &a);
 			wd->last_poll = t;
 		}
 	} else if ((t - wd->last_poll) >= POLL_INTERVAL_SECS) {
 		struct c5_area a;
-		if (area_open(&a, wd, 0)) host_to_guest(wd, &a);
+		if (area_open(&a, wd, wd->area_start)) host_to_guest(wd, &a);
 		wd->last_poll = t;
 	}
 }
@@ -756,10 +760,33 @@ static bool librar_present(struct c5_area *a)
 	return strncmp(nm, "LIBRAR", 6) == 0;
 }
 
+// pick which CROOK area to overlay the host directory into: the first *data*
+// area (A0 == 0, no LABEL/SYSTEM) that has a LIBRAR directory, so on a bootable
+// base image the system area is left alone and the files land on its data disk.
+// CROOK areas sit on 4912-sector quantum boundaries ("kwant podziału"). If no
+// such area is found (e.g. a synthesized disk, or a single-area image), overlay
+// into the area at logical 0.
+#define WINCH_QUANT 4912
+
+static unsigned pick_overlay_area(winchester_dir_t *wd)
+{
+	unsigned usable = wd->cyls * wd->heads * wd->spt - wd->spare;
+	for (unsigned start = 0 ; start + WINCH_QUANT <= usable ; start += WINCH_QUANT) {
+		struct c5_area a;
+		if (!area_open(&a, wd, start)) continue;
+		if (a.A0 != 0) continue;                 // system area - leave it alone
+		if (!librar_present(&a)) continue;
+		if (start != 0)
+			LOG(L_WNCH, "winchester dir: overlaying into data area at logical sector %u", start);
+		return start;
+	}
+	return 0;
+}
+
 static void overlay_dir(winchester_dir_t *wd)
 {
 	struct c5_area a;
-	if (!area_open(&a, wd, 0) || !librar_present(&a)) {
+	if (!area_open(&a, wd, wd->area_start) || !librar_present(&a)) {
 		LOGWARN("winchester dir: base image has no usable LIBRAR - directory not merged.");
 		return;
 	}
@@ -791,70 +818,121 @@ static void overlay_dir(winchester_dir_t *wd)
 }
 
 // ---------------------------------------------------------------------------
-// data-only mode: no base image - synthesize an empty CROOK-5 data area
-// (A0 = 0, no LABEL/SYSTEM) spanning the whole disk. Modelled on area "D" of
-// crook5-p8f-1.1.1.img: 9 DICDIC sectors, 100 FILDIC sectors (hash mask 0x3f),
-// MAPA sized to the disk, one empty LIBRAR directory.
+// data-only mode: no base image - synthesize a fresh, empty CROOK-5 data area
+// (A0 = 0, no LABEL/SYSTEM) at logical 0. The layout matches what BOSS's `CFA`
+// command produces for a plain data disk, and CROOK-5 8/15 auto-attaches it with
+// no alarm. The exact constants are taken from area "D" of the reference image
+// crook5-p8f-1.1.1.img:
+//   A1=9  (9 DICDIC sectors), A2=109 (100 FILDIC sectors), A3=117 (8 MAPA sectors),
+//   AK=29472 (6 quanta of 4912 sectors).
+//   NDIREC region = A3 .. A3+117, zero-filled but marked allocated in MAPA.
+//   Two users: LIBRAR (root) and BOSS.
+//   FILDIC holds the 5 mandatory BOSS system pseudo-files (MAP/DICDIC/GLOBAL/
+//   FILDIC/NDIREC) at their hash sectors, plus the per-sector hash-overflow
+//   link words that CROOK validates on attach (a 3-level 64/32/4 cascade).
 // ---------------------------------------------------------------------------
 
-#define SYNTH_A1            9      // DICDIC sectors (3 groups of 3)
-#define SYNTH_FILDIC_SECS   100    // -> hash mask 0x3f, overflow zone at +64
-#define SYNTH_FILDIC_MASK   0x3f
+#define SYNTH_A1      9
+#define SYNTH_A2      109      // 100 FILDIC sectors
+#define SYNTH_A3      117      // 8 MAPA sectors
+#define SYNTH_AK      29472    // 6 * 4912-sector quanta
+#define SYNTH_NDIREC  117      // NDIREC region length (sectors), right after MAPA
+#define SYNTH_BOSS_CODE   (12 * 4)   // BOSS is the 2nd DICDIC entry (word 12) -> code 48
+
+// write a 12-word DICDIC entry at word offset `woff`, split 4/4/4 across the
+// first three DICDIC sectors at the same offset (CROOK layout, opcr57 IV.7.1)
+static void synth_dicdic_entry(winchester_dir_t *wd, unsigned woff, const uint16_t e[12])
+{
+	for (unsigned part = 0 ; part < 3 ; part++) {
+		uint8_t *sec = lsec_ptr(wd, part);
+		for (unsigned k = 0 ; k < 4 ; k++) wrw(sec, woff + k, e[part * 4 + k]);
+	}
+}
+
+// one mandatory BOSS system pseudo-file entry in its FILDIC hash sector
+static void synth_fildic_sys(winchester_dir_t *wd, unsigned rel, const char *name,
+                             uint16_t ext_w, uint16_t w6,
+                             uint16_t start, uint16_t end, uint16_t len)
+{
+	uint8_t *sec = lsec_ptr(wd, SYNTH_A1 + rel);
+	uint16_t nm[2] = {0, 0};
+	r40_pack(name, MAX_NAME, nm);
+	uint16_t e[FILDIC_ENTRY_WORDS] = {0};
+	e[0] = nm[0]; e[1] = nm[1];
+	e[2] = SYNTH_BOSS_CODE;          // owner: BOSS
+	e[3] = ext_w;                    // "type" = area name (R40, 1 word)
+	e[6] = w6;
+	e[7] = 4;                        // creator flags word (BOSS's system files use 0x0004)
+	e[9] = start; e[10] = end; e[11] = len;
+	for (unsigned k = 0 ; k < FILDIC_ENTRY_WORDS ; k++) wrw(sec, 0 * FILDIC_ENTRY_WORDS + k, e[k]);
+	wrw(sec, 1 * FILDIC_ENTRY_WORDS, 1);   // end-of-dictionary marker in slot 1
+}
 
 static bool synth_data_area(winchester_dir_t *wd)
 {
 	unsigned usable = wd->cyls * wd->heads * wd->spt - wd->spare;
+	if (usable <= SYNTH_AK) return false;
 
-	uint16_t A1 = SYNTH_A1;
-	uint16_t A2 = (uint16_t)(A1 + SYNTH_FILDIC_SECS);
-	unsigned mapa_bytes = (usable + 7) / 8;
-	uint16_t mapa_secs = (uint16_t)((mapa_bytes + wd->ssize - 1) / wd->ssize);
-	uint16_t A3 = (uint16_t)(A2 + mapa_secs);
-	if (usable <= A3) return false;
-	uint16_t AK = (uint16_t)usable;
+	const uint16_t A1 = SYNTH_A1, A2 = SYNTH_A2, A3 = SYNTH_A3, AK = SYNTH_AK;
+	const unsigned struct_end = A3 + SYNTH_NDIREC;   // sectors 0..struct_end-1 stay allocated
 
 	memset(wd->mem, 0, wd->size);
 
-	// metryka (DICDIC words 0..7), mirrored in the first three DICDIC sectors
-	uint16_t meta[8] = {0};
-	r40_pack("DAT", 3, meta);        // area name (1 word)
-	meta[1] = 0;                     // A0 - no LABEL/SYSTEM
-	meta[2] = A1;                    // A1 - FILDIC start
-	meta[3] = A2;                    // A2 - MAPA start
-	meta[4] = A3;                    // A3 - MAPA end
-	meta[5] = AK;                    // AK - area length
+	uint16_t ename[2] = {0, 0};
+	r40_pack("DAT", 3, ename);                       // area name (1 R40 word, ename[0])
+
+	// metryka: DICDIC words 0..7, mirrored in the first three DICDIC sectors
+	uint16_t meta[8] = { ename[0], 0 /*A0*/, A1, A2, A3, AK, 0, 0 };
 	for (unsigned s = 0 ; s < 3 ; s++) {
 		uint8_t *sec = lsec_ptr(wd, s);
 		for (unsigned w = 0 ; w < 8 ; w++) wrw(sec, w, meta[w]);
 	}
 
-	// one empty LIBRAR directory at word 8, end marker at word 12
-	// (the 12-word entry is split 4/4/4 across the 3 DICDIC sectors)
-	uint16_t lname[2] = {0};
-	r40_pack("LIBRAR", 6, lname);
-	uint8_t *d0 = lsec_ptr(wd, 0);
-	wrw(d0, DICDIC_LIBRAR_WOFF + 0, lname[0]);
-	wrw(d0, DICDIC_LIBRAR_WOFF + 1, lname[1]);
-	wrw(d0, DICDIC_LIBRAR_WOFF + 2, 0);        // parent dir code = root
-	wrw(d0, DICDIC_LIBRAR_WOFF + 3, 0);        // subdir count
-	wrw(d0, DICDIC_LIBRAR_WOFF + 4, 1);        // end-of-dictionary marker
+	// users: LIBRAR (word 8, root) and BOSS (word 12, child of LIBRAR)
+	uint16_t librar[12] = {0}, boss[12] = {0};
+	r40_pack("LIBRAR", 6, librar);
+	librar[3] = 1;            // one subdir (BOSS)
+	librar[5] = 0x7fff;       // budget
+	librar[7] = 0x7fff;       // rights
+	r40_pack("BOSS", 6, boss);
+	boss[2] = DICDIC_LIBRAR_CODE;   // parent = LIBRAR
+	boss[5] = 0x7fff;
+	boss[6] = DICDIC_LIBRAR_CODE;
+	boss[7] = 0x7fff;
+	synth_dicdic_entry(wd, DICDIC_LIBRAR_WOFF, librar);
+	synth_dicdic_entry(wd, DICDIC_LIBRAR_WOFF + 4, boss);
+	{ uint16_t end[12] = { 1, 0,0,0,0,0,0,0,0,0,0,0 };
+	  synth_dicdic_entry(wd, DICDIC_LIBRAR_WOFF + 8, end); }   // end-of-dictionary
 
-	// FILDIC: every sector starts with an end marker + the trailing words
-	for (unsigned rel = 0 ; rel < SYNTH_FILDIC_SECS ; rel++) {
+	// FILDIC: per-sector hash-cascade link words (100 sectors = 64+32+4 levels).
+	// [252]=end-of-FILDIC flag, [253]=overflow link, [254]=level mask, [255]=index.
+	for (unsigned rel = 0 ; rel < (unsigned)(A2 - A1) ; rel++) {
 		uint8_t *sec = lsec_ptr(wd, A1 + rel);
-		wrw(sec, 0, 1);                                    // slot 0 = end marker
-		wrw(sec, 253, (uint16_t)(A1 + (SYNTH_FILDIC_MASK + 1) + rel));
-		wrw(sec, 254, SYNTH_FILDIC_MASK);
-		wrw(sec, 255, (uint16_t)rel);
+		uint16_t link, mask, idx;
+		if (rel < 64)       { link = (uint16_t)(A1 + 64 + (rel % 32));      mask = 63; idx = (uint16_t)rel; }
+		else if (rel < 96)  { link = (uint16_t)(A1 + 96 + ((rel - 64) % 4)); mask = 31; idx = (uint16_t)(rel - 64); }
+		else                { link = 0;                                     mask = 3;  idx = (uint16_t)(rel - 96); }
+		wrw(sec, 0, 1);                       // slot 0 = end marker (overwritten for the 5 sys sectors)
+		wrw(sec, 252, (rel == (unsigned)(A2 - A1) - 1) ? 0xffff : 0);
+		wrw(sec, 253, link);
+		wrw(sec, 254, mask);
+		wrw(sec, 255, idx);
 	}
 
-	// MAPA: mark the metadata region (sectors 0..A3-1) allocated, rest free
+	// the 5 mandatory BOSS system pseudo-files, at their fixed hash sectors
+	synth_fildic_sys(wd,  9, "MAP",    ename[0], 0x8000, A2, A3,              (uint16_t)(A3 - A2));
+	synth_fildic_sys(wd, 10, "DICDIC", ename[0], 0x8000, 0,  A1,             A1);
+	synth_fildic_sys(wd, 29, "GLOBAL", ename[0], 0x8000, 0,  AK,             AK);
+	synth_fildic_sys(wd, 32, "FILDIC", ename[0], 0x8000, A1, A2,             (uint16_t)(A2 - A1));
+	synth_fildic_sys(wd, 61, "NDIREC", ename[0], 0xc000, A3, (uint16_t)(A3 + SYNTH_NDIREC), SYNTH_NDIREC);
+
+	// MAPA: sectors 0 .. A3+NDIREC-1 allocated, rest free
 	struct c5_area a;
 	if (!area_open(&a, wd, 0)) return false;
-	for (unsigned s = 0 ; s < A3 ; s++) map_set(&a, s);
+	for (unsigned s = 0 ; s < struct_end ; s++) map_set(&a, s);
 
-	LOG(L_WNCH, "winchester dir: synthesized empty data area (A1=%u A2=%u A3=%u AK=%u, %u sectors free)",
-		A1, A2, A3, AK, AK - A3);
+	LOG(L_WNCH, "winchester dir: synthesized empty CROOK-5 data area (A1=%u A2=%u A3=%u AK=%u, %u sectors free)",
+		A1, A2, A3, AK, AK - struct_end);
 	return true;
 }
 
@@ -926,6 +1004,7 @@ winchester_dir_t * winchester_dir_create(const char *image_name, const char *dir
 	}
 
 	if (wd->dir_name && *wd->dir_name) {
+		wd->area_start = pick_overlay_area(wd);
 		wd->meta = fsmeta_load(wd->dir_name, FSMETA_SIDECAR);
 		overlay_dir(wd);
 	}
@@ -951,7 +1030,7 @@ void winchester_dir_destroy(winchester_dir_t *wd)
 	if (wd->watch) dirwatch_destroy(wd->watch);   // no more host events past here
 	if (wd->sync) {                    // final flush of anything CROOK changed
 		struct c5_area a;
-		if (area_open(&a, wd, 0)) guest_to_host(wd, &a);
+		if (area_open(&a, wd, wd->area_start)) guest_to_host(wd, &a);
 	}
 	fsmeta_save(wd->meta);
 	fsmeta_free(wd->meta);
