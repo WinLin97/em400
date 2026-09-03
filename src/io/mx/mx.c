@@ -642,7 +642,7 @@ static int mx_cmd_setcfg(chan_mx_t *multix, uint16_t addr)
 			if (multix->plines[i].type == MX_PHY_FLOPPY) floppy_drives++;
 		}
 		unsigned floppy_ctrls = (floppy_drives + 3) / 4;
-		unsigned setcfg_delay_us = MX_SETCFG_BASE_US
+		setcfg_delay_us = MX_SETCFG_BASE_US
 			+ cur_line * MX_SETCFG_PHY_LINE_US
 			+ log_count * MX_SETCFG_LOG_LINE_US
 			+ floppy_ctrls * MX_SETCFG_FLOPPY_US;
