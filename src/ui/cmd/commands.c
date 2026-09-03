@@ -50,6 +50,7 @@ void ui_cmd_help(FILE *out, char *args);
 void ui_cmd_brk(FILE *out, char *args);
 void ui_cmd_brkdel(FILE *out, char *args);
 void ui_cmd_stopn(FILE *out, char *args);
+void ui_cmd_disc(FILE *out, char *args);
 
 struct ui_cmd_command commands[] = {
 	{ UI_CMD_FLAG_NONE, "state",	"",							"Get CPU state",					ui_cmd_state },
@@ -63,6 +64,7 @@ struct ui_cmd_command commands[] = {
 	{ UI_CMD_FLAG_NONE, "brk",		"<expr>",					"Add breakpoint",					ui_cmd_brk },
 	{ UI_CMD_FLAG_NONE, "brkdel",	"<id>",						"Delete breakpoint",				ui_cmd_brkdel },
 	{ UI_CMD_FLAG_NONE, "stopn",	"<addr>|off",				"Stop CPU on address",				ui_cmd_stopn },
+	{ UI_CMD_FLAG_NONE, "disc",		"<chan> <dev> <slot> [<file>|-]", "Show / insert / eject removable media", ui_cmd_disc },
 	{ UI_CMD_FLAG_NONE, "clock",	"[on|off]",					"Manipulate clock state",			ui_cmd_clock },
 	{ UI_CMD_FLAG_NONE, "oprq",		"",							"Send operator request",			ui_cmd_oprq },
 	{ UI_CMD_FLAG_NONE, "memw",		"<seg> <addr> <val> ...",	"Set memory contents",				ui_cmd_memw },
@@ -419,6 +421,65 @@ void ui_cmd_load(FILE *out, char *args)
 		ui_cmd_resp(out, RESP_ERR, UI_EOL, "File upload failed: %s", tok_file);
 	} else {
 		ui_cmd_resp(out, RESP_OK, UI_EOL, "%i words loaded from file %s", words, tok_file);
+	}
+}
+
+// -----------------------------------------------------------------------
+void ui_cmd_disc(FILE *out, char *args)
+{
+	char *tok_chan, *tok_dev, *tok_slot, *tok_file, *remainder;
+
+	int chan = ui_cmd_gettok_int(args, &tok_chan, &remainder);
+	int dev = ui_cmd_gettok_int(remainder, &tok_dev, &remainder);
+	int slot = ui_cmd_gettok_int(remainder, &tok_slot, &remainder);
+	if (!tok_chan || !tok_dev || !tok_slot) {
+		ui_cmd_resp(out, RESP_ERR, UI_EOL, "Usage: disc <chan> <dev> <slot> [<file>|-]");
+		return;
+	}
+	if ((chan < 0) || (chan > 15) || (dev < 0) || (dev > 15) || (slot < 0)) {
+		ui_cmd_resp(out, RESP_ERR, UI_EOL, "Bad chan/dev/slot: %i %i %i", chan, dev, slot);
+		return;
+	}
+
+	int slots = em400_dev_slot_count(chan, dev);
+	if (slots <= 0) {
+		ui_cmd_resp(out, RESP_ERR, UI_EOL, "No removable-media device at %i.%i", chan, dev);
+		return;
+	}
+	if (slot >= slots) {
+		ui_cmd_resp(out, RESP_ERR, UI_EOL, "Device %i.%i has %i slot(s)", chan, dev, slots);
+		return;
+	}
+
+	tok_file = ui_cmd_skip_ws(remainder);
+	tok_file = (tok_file && *tok_file) ? ui_cmd_remove_trailing_ws(tok_file) : NULL;
+
+	// no file argument: report the currently inserted image
+	if (!tok_file) {
+		const char *img = em400_dev_get_image(chan, dev, slot);
+		ui_cmd_resp(out, RESP_OK, UI_EOL, "%s", img ? img : "(empty)");
+		return;
+	}
+
+	if (!em400_dev_can_eject(chan, dev, slot)) {
+		ui_cmd_resp(out, RESP_ERR, UI_EOL, "Doors locked (drive busy), cannot change media in %i.%i slot %i", chan, dev, slot);
+		return;
+	}
+
+	// "-" ejects
+	if (!strcmp(tok_file, "-")) {
+		if (em400_dev_eject(chan, dev, slot) != E_OK) {
+			ui_cmd_resp(out, RESP_ERR, UI_EOL, "Eject failed for %i.%i slot %i", chan, dev, slot);
+		} else {
+			ui_cmd_resp(out, RESP_OK, UI_EOL, "Ejected %i.%i slot %i", chan, dev, slot);
+		}
+		return;
+	}
+
+	if (em400_dev_load_image(chan, dev, slot, tok_file) != E_OK) {
+		ui_cmd_resp(out, RESP_ERR, UI_EOL, "Cannot insert '%s' into %i.%i slot %i", tok_file, chan, dev, slot);
+	} else {
+		ui_cmd_resp(out, RESP_OK, UI_EOL, "Inserted '%s' into %i.%i slot %i", tok_file, chan, dev, slot);
 	}
 }
 
