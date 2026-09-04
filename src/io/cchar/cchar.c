@@ -39,6 +39,7 @@ struct chan_char {
 	pthread_mutex_t int_mutex;
 	int int_mask;
 	int interrupting_device;
+	int last_reported_device;	// for round-robin interrupt scanning
 	int was_en;
 	int untransmitted;
 
@@ -161,12 +162,18 @@ void cchar_int_trigger(chan_char_t *chan)
 		// interrupt reported to the CPU but not yet served, nothing more to do
 		LOG(L_CCHR, "CCHAR (ch:%i) not reporting interrupt. Reported by unit: %i has yet to be served", chan->base.num, chan->interrupting_device);
 	} else {
-		// check if any unit reported interrupt
-		for (int unit_n=0 ; unit_n<CCHAR_MAX_DEVICES ; unit_n++) {
+		// check if any unit reported interrupt - round-robin from the unit
+		// after the last one served, so a chatty low-numbered device (e.g. the
+		// real-time clock at unit 0, ticking twice a second) can't perpetually
+		// starve a higher-numbered one (e.g. the console terminal) when the CPU
+		// is slow to service interrupts.
+		for (int i=1 ; i<=CCHAR_MAX_DEVICES ; i++) {
+			int unit_n = (chan->last_reported_device + i) % CCHAR_MAX_DEVICES;
 			cchar_unit_t *unit = chan->unit[unit_n];
 			if (unit && unit->has_interrupt(unit)) {
 				LOG(L_CCHR, "CCHAR (ch:%i) reporting interrupt from unit %i", chan->base.num, unit_n);
 				chan->interrupting_device = unit_n;
+				chan->last_reported_device = unit_n;
 				io_int_set(chan->base.num);
 				break;
 			}
