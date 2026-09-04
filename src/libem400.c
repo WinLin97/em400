@@ -87,7 +87,7 @@ static int device_build(unsigned chnum, unsigned devnum, const struct em400_devi
 		case EM400_DEV_NONE:
 			return E_OK;
 		case EM400_DEV_TERMINAL:
-			dev = terminal_create(dcfg->terminal.port, dcfg->terminal.speed);
+			dev = terminal_create(dcfg->terminal.port, dcfg->terminal.speed, dcfg->terminal.unattended);
 			break;
 		case EM400_DEV_WINCHESTER:
 			dev = winchester_create(dcfg->winchester.image, dcfg->winchester.dir);

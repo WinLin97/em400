@@ -48,9 +48,27 @@ struct uzdat_s {
 	int state;
 	int dir;
 	bool xfer_busy;
-	bool buf_rd_ready;
 	uint8_t buf_wr;
+
+	// Hardware-faithful 1-byte receive buffer (the default): a character
+	// arriving before the CPU read the previous one overwrites it and signals
+	// CCHAR_INT_TOO_SLOW, exactly like the real UZ-DAT. The real CPU (~1 MIPS)
+	// always drained it within one character time, so this never lost data in
+	// practice.
+	bool buf_rd_ready;
 	uint8_t buf_rd;
+
+	// "unattended" mode only (see terminal.h's `unattended` device option):
+	// em400's CPU can stall much longer than the real one ever did (e.g. a
+	// guest OS busy-looping elsewhere), long enough to lose typed input on an
+	// automated/unattended session with nobody watching to retype a dropped
+	// command. A small receive FIFO plus terminal-side backpressure
+	// (uzdat_can_receive()) absorb such a stall instead. Left off by default -
+	// deviates from the real 1-byte UZ-DAT, which had no such slack.
+	bool unattended;
+	uint8_t rx_fifo[32];
+	unsigned rx_head;
+	unsigned rx_count;
 
 	em400_dev_t *dev;
 
@@ -77,11 +95,49 @@ void uzdat_reset(cchar_unit_t *unit);
 int uzdat_cmd(cchar_unit_t *unit, int dir, int cmd, uint16_t *r_arg);
 int uzdat_intspec(cchar_unit_t *unit);
 bool uzdat_has_interrupt(cchar_unit_t *unit);
+bool uzdat_can_receive(void *ptr);
 
 static void uzdat_on_async_write(uv_async_t *handle);
 static void uzdat_on_async_switch_dir(uv_async_t *handle);
 
 void uzdat_on_data_received(uzdat_t *uzdat, char data);
+
+// -----------------------------------------------------------------------
+// Receive FIFO helpers. Caller holds uzdat->mutex.
+#define UZDAT_RX_FIFO_LEN ((unsigned) (sizeof(((uzdat_t*)0)->rx_fifo)))
+
+static inline bool uzdat_rx_empty(uzdat_t *uzdat)
+{
+	return uzdat->rx_count == 0;
+}
+
+static inline bool uzdat_rx_full(uzdat_t *uzdat)
+{
+	return uzdat->rx_count >= UZDAT_RX_FIFO_LEN;
+}
+
+static inline void uzdat_rx_push(uzdat_t *uzdat, uint8_t data)
+{
+	unsigned tail = (uzdat->rx_head + uzdat->rx_count) % UZDAT_RX_FIFO_LEN;
+	uzdat->rx_fifo[tail] = data;
+	uzdat->rx_count++;
+}
+
+static inline uint8_t uzdat_rx_pop(uzdat_t *uzdat)
+{
+	uint8_t data = uzdat->rx_fifo[uzdat->rx_head];
+	uzdat->rx_head = (uzdat->rx_head + 1) % UZDAT_RX_FIFO_LEN;
+	uzdat->rx_count--;
+	return data;
+}
+
+// Clears whichever receive buffer is in use. Caller holds uzdat->mutex.
+static inline void uzdat_rx_flush(uzdat_t *uzdat)
+{
+	uzdat->rx_head = 0;
+	uzdat->rx_count = 0;
+	uzdat->buf_rd_ready = false;
+}
 void uzdat_on_data_sent(uzdat_t *uzdat);
 
 // -----------------------------------------------------------------------
@@ -175,8 +231,9 @@ cchar_unit_t * uzdat_create(int dev_num, em400_dev_t *dev)
 	uzdat_reset((cchar_unit_t *) uzdat);
 
 	uzdat->dev = dev;
+	uzdat->unattended = ((terminal_t *) dev)->unattended;
 	// TODO: generic device callback registration?
-	terminal_register_callbacks((terminal_t *) uzdat->dev, uzdat, (void*) uzdat_on_data_received, (void*) uzdat_on_data_sent);
+	terminal_register_callbacks((terminal_t *) uzdat->dev, uzdat, (void*) uzdat_on_data_received, (void*) uzdat_on_data_sent, (void*) uzdat_can_receive);
 
 	if (uzdat_ioloop_setup(uzdat) == E_ERR) {
 		uzdat_try_free(uzdat);
@@ -195,13 +252,26 @@ void uzdat_on_data_received(uzdat_t *uzdat, char data)
 
 	pthread_mutex_lock(&uzdat->mutex);
 	if ((uzdat->dir == UZDAT_DIR_IN) && (uzdat->state != UZDAT_STATE_OFF)) {
-		if (uzdat->buf_rd_ready) {
-			uzdat->intspec = CCHAR_INT_TOO_SLOW;
-		} else if (uzdat->state == UZDAT_STATE_EN) {
-			uzdat->intspec = CCHAR_INT_READY;
+		if (uzdat->unattended) {
+			if (uzdat_rx_full(uzdat)) {
+				// genuine overrun: the CPU is not draining the FIFO at all
+				uzdat->intspec = CCHAR_INT_TOO_SLOW;
+			} else {
+				uzdat_rx_push(uzdat, data);
+				if (uzdat->state == UZDAT_STATE_EN) {
+					uzdat->intspec = CCHAR_INT_READY;
+				}
+			}
+		} else {
+			// hardware-faithful: a single register, overwritten on overrun
+			if (uzdat->buf_rd_ready) {
+				uzdat->intspec = CCHAR_INT_TOO_SLOW;
+			} else if (uzdat->state == UZDAT_STATE_EN) {
+				uzdat->intspec = CCHAR_INT_READY;
+			}
+			uzdat->buf_rd = data;
+			uzdat->buf_rd_ready = true;
 		}
-		uzdat->buf_rd = data;
-		uzdat->buf_rd_ready = true;
 		trigger_interrupt = true;
 	}
 	pthread_mutex_unlock(&uzdat->mutex);
@@ -284,6 +354,25 @@ int uzdat_intspec(cchar_unit_t *unit)
 }
 
 // -----------------------------------------------------------------------
+// Terminal-side backpressure, "unattended" mode only: true while there is
+// room in the receive FIFO; false holds the next character in terminal.c
+// instead of overrunning us. In the default (hardware-faithful) mode this
+// always says yes, same as a controller with no opinion at all - terminal.c
+// delivers on schedule and we do our own overwrite-on-overrun below.
+bool uzdat_can_receive(void *ptr)
+{
+	uzdat_t *uzdat = (uzdat_t*) ptr;
+
+	if (!uzdat->unattended) return true;
+
+	pthread_mutex_lock(&uzdat->mutex);
+	bool room = !uzdat_rx_full(uzdat);
+	pthread_mutex_unlock(&uzdat->mutex);
+
+	return room;
+}
+
+// -----------------------------------------------------------------------
 bool uzdat_has_interrupt(cchar_unit_t *unit)
 {
 	uzdat_t *uzdat = (uzdat_t*) unit;
@@ -301,11 +390,15 @@ static int uzdat_read(uzdat_t *uzdat, uint16_t *r_arg)
 	int ret;
 	LOG(L_UZDAT, "Command: READ");
 
+	uint8_t rx_data = 0;
+
 	pthread_mutex_lock(&uzdat->mutex);
 	uzdat->dir = UZDAT_DIR_IN;
-	if (uzdat->buf_rd_ready) {
-		*r_arg = uzdat->buf_rd;
-		uzdat->buf_rd_ready = false;
+	bool have_data = uzdat->unattended ? !uzdat_rx_empty(uzdat) : uzdat->buf_rd_ready;
+	if (have_data) {
+		rx_data = uzdat->unattended ? uzdat_rx_pop(uzdat) : uzdat->buf_rd;
+		if (!uzdat->unattended) uzdat->buf_rd_ready = false;
+		*r_arg = rx_data;
 		uzdat->state = UZDAT_STATE_OK;
 		ret = IO_OK;
 	} else {
@@ -315,7 +408,7 @@ static int uzdat_read(uzdat_t *uzdat, uint16_t *r_arg)
 	pthread_mutex_unlock(&uzdat->mutex);
 
 	if (ret == IO_OK) {
-		LOGCHAR(L_UZDAT, "%s: ", "READ ready, received: ", (uint8_t) uzdat->buf_rd);
+		LOGCHAR(L_UZDAT, "%s: ", "READ ready, received: ", rx_data);
 	} else {
 		LOG(L_UZDAT, "Buffer empty, nothing to read");
 	}
@@ -409,7 +502,7 @@ static int uzdat_disconnect(uzdat_t *uzdat)
 	if (!uzdat->xfer_busy) {
 		uzdat->state = UZDAT_STATE_OFF;
 		uzdat->dir = UZDAT_DIR_NONE;
-		uzdat->buf_rd_ready = false;
+		uzdat_rx_flush(uzdat);
 		ret = IO_OK;
 	} else {
 		uzdat->state = UZDAT_STATE_EN;
@@ -431,7 +524,7 @@ void uzdat_reset(cchar_unit_t *unit)
 	uzdat->state = UZDAT_STATE_OFF;
 	uzdat->dir = UZDAT_DIR_NONE;
 	uzdat->xfer_busy = false;
-	uzdat->buf_rd_ready = false;
+	uzdat_rx_flush(uzdat);
 	pthread_mutex_unlock(&uzdat->mutex);
 }
 

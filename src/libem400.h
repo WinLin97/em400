@@ -109,7 +109,7 @@ struct em400_mem_cfg {
 struct em400_device_cfg {
 	enum em400_device_types type;
 	union {
-		struct { int port; int speed; } terminal;
+		struct { int port; int speed; bool unattended; } terminal;
 		struct { const char *image; const char *dir; } winchester;
 		struct { const char *prom; } rtclock;
 		struct { const char *images[EM400_SP45DE_SLOT_COUNT]; } sp45de;

@@ -131,6 +131,18 @@ static void on_read_delay_timeout(uv_timer_t *handle)
 {
 	terminal_t *terminal = (terminal_t*) handle->data;
 
+	// Optional backpressure: a controller that implements can_receive() and
+	// says "no" gets the character held here and retried instead of handed
+	// over. The default (no can_receive, or one that never refuses) delivers
+	// every character on this timer exactly as before - this only changes
+	// behaviour for a controller that opts in (see uzdat.c's "unattended" mode).
+	if (terminal->controller && terminal->can_receive
+	    && !terminal->can_receive(terminal->controller)) {
+		uv_timer_start(&terminal->timer_read, on_read_delay_timeout,
+		               terminal->delay_ms > 0 ? terminal->delay_ms : 1, 0);
+		return;
+	}
+
 	int data = term_buf_get(terminal);
 	if ((data > 0) && (terminal->controller) && (terminal->on_data_received)) {
 		terminal->on_data_received(terminal->controller, data);
@@ -385,17 +397,18 @@ static int terminal_ioloop_setup(terminal_t *terminal)
 
 // -----------------------------------------------------------------------
 // TODO: generic device callback registration?
-void terminal_register_callbacks(terminal_t * terminal, void *controller, on_data_received_cb recv_cb, on_data_sent_cb sent_cb)
+void terminal_register_callbacks(terminal_t * terminal, void *controller, on_data_received_cb recv_cb, on_data_sent_cb sent_cb, can_receive_cb can_recv_cb)
 {
 	terminal->controller = controller;
 	terminal->on_data_received = recv_cb;
 	terminal->on_data_sent = sent_cb;
+	terminal->can_receive = can_recv_cb;
 }
 
 // -----------------------------------------------------------------------
-em400_dev_t * terminal_create(unsigned port, unsigned speed)
+em400_dev_t * terminal_create(unsigned port, unsigned speed, bool unattended)
 {
-	LOG(L_TERM, "Creating terminal: speed %i, TCP port %i", speed, port);
+	LOG(L_TERM, "Creating terminal: speed %i, TCP port %i%s", speed, port, unattended ? ", unattended" : "");
 
 	if ((speed > 9600) || (speed < 150) || (speed % 150)) {
 		LOGERR("Wrong terminal (port %i) speed. Allowed values: 9600, 4800, 2400, 1200, 600, 300, 150", port);
@@ -423,6 +436,7 @@ em400_dev_t * terminal_create(unsigned port, unsigned speed)
 	term_buf_reset(terminal);
 	terminal->client = NULL;
 	terminal->port = port;
+	terminal->unattended = unattended;
 	// milisecond accuracy due to libuv limitations, 8 bits + start + stop
 	terminal->delay_ms = (io_timing == EM400_TIMING_NONE) ? 0 : roundf((float) ((8+2) * 1000) / speed);
 

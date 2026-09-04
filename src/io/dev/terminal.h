@@ -30,12 +30,20 @@ typedef struct terminal terminal_t;
 
 typedef void (*on_data_received_cb)(void *ptr, char data);
 typedef void (*on_data_sent_cb)(void *ptr);
+// Optional: true while the controller has room for another character. A
+// controller that never says "no" (the default) gets every character handed
+// to it the instant its delay timer fires, same as always. One that does say
+// "no" gets held off instead of being handed a character it would have to
+// drop - only meaningful for a controller that opted into that behaviour
+// (see uzdat.c's "unattended" mode).
+typedef bool (*can_receive_cb)(void *ptr);
 
 struct terminal {
 	struct em400_dev base;
 
 	int port;
 	int delay_ms;
+	bool unattended; // see terminal_create()
 
 	pthread_mutex_t mutex; // required due to reset comming from another thread
 	char rdbuf[TERMINAL_BUF_SIZE];
@@ -55,11 +63,12 @@ struct terminal {
 	// TODO: generic device callback registration?
 	on_data_received_cb on_data_received;
 	on_data_sent_cb on_data_sent;
+	can_receive_cb can_receive;
 	void *controller;
 };
 
-em400_dev_t * terminal_create(unsigned port, unsigned speed);
-void terminal_register_callbacks(terminal_t * terminal, void *controller, on_data_received_cb recv_cb, on_data_sent_cb sent_cb);
+em400_dev_t * terminal_create(unsigned port, unsigned speed, bool unattended);
+void terminal_register_callbacks(terminal_t * terminal, void *controller, on_data_received_cb recv_cb, on_data_sent_cb sent_cb, can_receive_cb can_recv_cb);
 
 #endif
 

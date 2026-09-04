@@ -367,6 +367,7 @@ static int build_device(em400_cfg *cfg, int chnum, int devnum, struct em400_devi
 		dev->type = EM400_DEV_TERMINAL;
 		dev->terminal.port = port;
 		dev->terminal.speed = speed;
+		dev->terminal.unattended = cfg_fgetbool_def(cfg, false, "dev%i.%i:unattended", chnum, devnum);
 	} else if (!strcasecmp(dev_type_name, "winchester")) {
 		dev->type = EM400_DEV_WINCHESTER;
 		dev->winchester.image = dup_path(cfg_fgetstr(cfg, "dev%i.%i:image", chnum, devnum));
@@ -477,6 +478,7 @@ static int build_device_new(em400_cfg *cfg, const char *sec, int chnum, int devn
 		dev->type = EM400_DEV_TERMINAL;
 		dev->terminal.port = port;
 		dev->terminal.speed = speed;
+		dev->terminal.unattended = cfg_fgetbool_def(cfg, false, "%s:dev.%i.%i.unattended", sec, chnum, devnum);
 	} else if (!strcasecmp(dev_type_name, "winchester")) {
 		dev->type = EM400_DEV_WINCHESTER;
 		dev->winchester.image = dup_path(cfg_fgetstr(cfg, "%s:dev.%i.%i.image", sec, chnum, devnum));
@@ -718,6 +720,9 @@ static void write_device(FILE *f, int chnum, int devnum, const struct em400_devi
 			fprintf(f, "dev.%i.%i.port = %i\n", chnum, devnum, dev->terminal.port);
 			if (dev->terminal.speed != 9600) {
 				fprintf(f, "dev.%i.%i.speed = %i\n", chnum, devnum, dev->terminal.speed);
+			}
+			if (dev->terminal.unattended) {
+				fprintf(f, "dev.%i.%i.unattended = true\n", chnum, devnum);
 			}
 			break;
 		case EM400_DEV_WINCHESTER:
