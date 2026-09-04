@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <stdatomic.h>
 
 #include "io/defs.h"
 #include "io/cchar/cchar.h"
@@ -112,7 +113,13 @@ struct uzfx {
 	int operation;
 	bool pending_buf_write;
 	bool interrupt_required;
-	int interrupts;
+	// Pending interrupt bitmask. Atomic and deliberately NOT guarded by
+	// state_mutex: has_interrupt()/intspec() are reached from the channel while
+	// it holds int_mutex, and the worker publishes them while holding
+	// state_mutex - guarding this field with state_mutex too would close a
+	// state_mutex <-> int_mutex cycle and deadlock. With it atomic, the worker
+	// can publish + latch the interrupt in one critical section.
+	atomic_int interrupts;
 	sp45de_t *sp45de;
 };
 
@@ -191,7 +198,7 @@ static void uzfx_reset_state(uzfx_t *uzfx)
 	uzfx->state = UZFX_ST0_IDLE;
 	uzfx->pending_buf_write = false;
 	uzfx->interrupt_required = false;
-	uzfx->interrupts = UZFX_INT_NONE;
+	atomic_store(&uzfx->interrupts, UZFX_INT_NONE);
 	pthread_mutex_unlock(&uzfx->state_mutex);
 }
 
@@ -328,15 +335,15 @@ static void * uzfx_worker_loop(void *ptr)
 		}
 
 		if (interrupt != UZFX_INT_NONE) {
-			uzfx->interrupts = interrupt;
+			// publish + latch atomically: still holding state_mutex, so no
+			// cmd/reset can slip in between and drop this interrupt. Safe from
+			// deadlock because has_interrupt()/intspec() are lock-free.
+			atomic_fetch_or(&uzfx->interrupts, interrupt);
 			uzfx->interrupt_required = false;
-		}
-		pthread_mutex_unlock(&uzfx->state_mutex);
-
-		if (interrupt != UZFX_INT_NONE) {
 			LOG(L_UZFX, "Worker sending interrupt");
 			cchar_int_trigger(uzfx->base.chan);
 		}
+		pthread_mutex_unlock(&uzfx->state_mutex);
 
 	}
 
@@ -349,11 +356,7 @@ bool uzfx_has_interrupt(cchar_unit_t *unit)
 {
 	uzfx_t *uzfx = (uzfx_t *) unit;
 
-	pthread_mutex_lock(&uzfx->state_mutex);
-	int interrupt = uzfx->interrupts;
-	pthread_mutex_unlock(&uzfx->state_mutex);
-
-	return interrupt ? true : false;
+	return atomic_load(&uzfx->interrupts) ? true : false;
 }
 
 // -----------------------------------------------------------------------
@@ -363,15 +366,14 @@ int uzfx_intspec(cchar_unit_t *unit)
 
 	int spec = UZFX_INT_NONE;
 
-	pthread_mutex_lock(&uzfx->state_mutex);
+	int pending = atomic_load(&uzfx->interrupts);
 	for (int shift=0 ; shift<=5 ; shift++) {
-		if (uzfx->interrupts & (1<<shift)) {
+		if (pending & (1<<shift)) {
 			spec = uzfx_interrupt_specs[shift];
-			uzfx->interrupts &= ~(1<<shift);
+			atomic_fetch_and(&uzfx->interrupts, ~(1<<shift));
 			break;
 		}
 	}
-	pthread_mutex_unlock(&uzfx->state_mutex);
 
 	return spec;
 }
@@ -401,7 +403,7 @@ static int uzfx_cmd_read(cchar_unit_t *unit, uint16_t *r_arg)
 				sp45de_motor_stop(uzfx->sp45de);  // idle: allow the doors to unlock
 			}
 			*r_arg = c;
-			uzfx->interrupts = UZFX_INT_NONE;
+			atomic_store(&uzfx->interrupts, UZFX_INT_NONE);
 			io_ret = IO_OK;
 			break;
 		default:
@@ -516,7 +518,7 @@ static int uzfx_cmd_detach(cchar_unit_t *unit)
 	switch (uzfx->state) {
 		case UZFX_ST0_IDLE:
 			sp45de_motor_stop(uzfx->sp45de);
-			uzfx->interrupts = UZFX_INT_NONE;
+			atomic_store(&uzfx->interrupts, UZFX_INT_NONE);
 			io_ret = IO_OK;
 			break;
 		case UZFX_ST2_BUF_RD:
