@@ -77,6 +77,7 @@ static const char * channel_type_name(enum em400_channel_types type)
 		case EM400_CHANNEL_CHAR: return "char";
 		case EM400_CHANNEL_MULTIX: return "multix";
 		case EM400_CHANNEL_IOTESTER: return "iotester";
+		case EM400_CHANNEL_PLIX: return "plix";
 		default: return NULL;
 	}
 }
@@ -410,6 +411,8 @@ static int build_io(em400_cfg *cfg, struct em400_machine_cfg *machine)
 			chan->type = EM400_CHANNEL_MULTIX;
 		} else if (!strcasecmp(ch_name, "iotester")) {
 			chan->type = EM400_CHANNEL_IOTESTER;
+		} else if (!strcasecmp(ch_name, "plix")) {
+			chan->type = EM400_CHANNEL_PLIX;
 		} else {
 			return em400_msg(EM400_MSG_ERROR, "Unknown channel %i type: %s", chnum, ch_name);
 		}
@@ -525,6 +528,8 @@ static int build_io_new(em400_cfg *cfg, const char *sec, struct em400_machine_cf
 			chan->type = EM400_CHANNEL_MULTIX;
 		} else if (!strcasecmp(ch_name, "iotester")) {
 			chan->type = EM400_CHANNEL_IOTESTER;
+		} else if (!strcasecmp(ch_name, "plix")) {
+			chan->type = EM400_CHANNEL_PLIX;
 		} else {
 			return em400_msg(EM400_MSG_ERROR, "Unknown channel %i type: %s", chnum, ch_name);
 		}

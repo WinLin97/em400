@@ -173,6 +173,9 @@ set(SOURCES_EM400
 	src/io/mx/proto_som_punchrd.c
 	src/io/mx/proto_som_terminal.c
 
+	src/io/plix/plix.c
+	src/io/plix/plix.h
+
 	src/ui/ui.c
 	src/ui/ui.h
 

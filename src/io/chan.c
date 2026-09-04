@@ -23,6 +23,7 @@
 #include "io/cchar/cchar.h"
 #include "io/iotester.h"
 #include "io/mx/mx.h"
+#include "io/plix/plix.h"
 
 typedef chan_t * (*chan_create_f)(int ch_num);
 
@@ -47,6 +48,11 @@ static const struct chan_kind chan_kinds[] = {
 		.dev_compatible = mx_dev_compatible,
 		.create = mx_create,
 		.max_devices = MX_LINE_CNT,
+	},
+	[EM400_CHANNEL_PLIX] = {
+		.dev_compatible = plix_dev_compatible,
+		.create = plix_create,
+		.max_devices = 0,
 	},
 };
 

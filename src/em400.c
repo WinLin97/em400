@@ -104,7 +104,7 @@ static void em400_usage()
 		"                      with '-' to exclude it, e.g. \"all,-cpu\" logs everything but cpu\n"
 		"                      (lib is always logged and cannot be excluded). Components:\n"
 		"                      lib, app, crk5, mem, cpu, op, int, io, mx, cchr, cmem, uzdat, uzfx,\n"
-		"                      meclo, term, 9425, wnch, flop, pnch, pnrd, tape, all\n"
+		"                      meclo, term, 9425, wnch, flop, pnch, pnrd, tape, plix, all\n"
 		"   -L               : Disable logging\n"
 		"   -u ui            : User interface to use. Available UIs (first is the default):"
 	);

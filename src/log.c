@@ -49,6 +49,7 @@ static const char * log_component_names[] = {
 	"MX", "CCHR", "CMEM",
 	"UZDAT", "UZFX", "MECLO",
 	"TERM", "9425", "WNCH", "FLOP", "PNCH", "PNRD","TAPE",
+	"PLIX",
 };
 
 atomic_uint log_components_enabled = 0; // components currently enabled or 0 if logging is disabled
