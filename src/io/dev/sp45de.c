@@ -17,6 +17,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <pthread.h>
@@ -282,8 +283,27 @@ static int sp45de_image_replace(em400_dev_t *dev, unsigned slot, const char *ima
 		bool as_crookfs = (stat(sidecar, &pst) == 0);
 
 		if (as_crookfs) {
+			// ".crookfs.ini" may carry a "variant = T" / "variant = N" line
+			// (anywhere, outside a [file] section) to pick the CFA format flavour.
+			enum sp45de_crk_variant variant = SP45DE_CRK_VARIANT_N;
+			FILE *sc = fopen(sidecar, "r");
+			if (sc) {
+				char line[256];
+				while (fgets(line, sizeof(line), sc)) {
+					char *p = line;
+					while (*p == ' ' || *p == '\t') p++;
+					if (*p == '[') continue;
+					if (strncasecmp(p, "variant", 7)) continue;
+					p = strchr(p, '=');
+					if (!p) continue;
+					do { p++; } while (*p == ' ' || *p == '\t');
+					if (*p == 'T' || *p == 't') variant = SP45DE_CRK_VARIANT_T;
+					break;
+				}
+				fclose(sc);
+			}
 			sp45de->crkdir[slot] = sp45de_crkdir_create(image_name,
-				SP45DE_TRACK_CNT, SP45DE_SECTOR_PER_TRACK, SP45DE_BLK_SIZE);
+				SP45DE_TRACK_CNT, SP45DE_SECTOR_PER_TRACK, SP45DE_BLK_SIZE, variant);
 			if (!sp45de->crkdir[slot]) {
 				LOG(L_FLOP, "Cannot mount directory %s (CROOK-5 FS) for slot %i", image_name, slot);
 				goto fin;

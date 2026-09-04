@@ -57,6 +57,7 @@ struct sp45de_crkdir {
 	uint8_t *mem;                 // flat 128-byte-physical-sector image
 	long size;
 	unsigned tracks, spt, blk;
+	enum sp45de_crk_variant variant;
 	c5fs_t *fs;
 };
 
@@ -111,7 +112,9 @@ static bool synth_flop8(sp45de_crkdir_t *sd)
 	label[1] = FLP_A0;
 	label[2] = FLP_A1;
 	label[3] = FLP_A2;
-	label[4] = FLP_A3 | FLP_A3_FLAG;
+	// N: LABEL[4] = A3 plain.  T: A3 | 0x8000.  c5fs_area_open() masks the flag
+	// off before use, so this word is purely the on-disk N/T marker CROOK reads.
+	label[4] = (sd->variant == SP45DE_CRK_VARIANT_T) ? (FLP_A3 | FLP_A3_FLAG) : FLP_A3;
 	label[5] = FLP_AK;
 	label[8]  = label[11] = (uint16_t)(tmv.tm_year + 1900);
 	label[9]  = label[12] = (uint16_t)(tmv.tm_mon + 1);
@@ -161,7 +164,12 @@ static bool synth_flop8(sp45de_crkdir_t *sd)
 	struct c5_area a;
 	if (!c5fs_area_open(&a, fs, 0)) return false;
 
-	// the 8 system pseudo-files, in the order BOSS's CFA creates them
+	// The system pseudo-files, in the order BOSS's CFA creates them. A pure "N"
+	// format writes only FILDIC/GLOBAL/LABEL/DICDIC and omits the recovery-region
+	// copies; we always lay down the full "T" set (plus the CDIREC copy and the
+	// allocated MAP below) - CROOK-5 reads only what it needs from either, and
+	// the extra entries are harmless. `variant` currently only toggles the
+	// LABEL[4] marker; a leaner N image is future work.
 	fildic_sys(&a, "FILDIC", 0x8000, 0,      FLP_A1, FLP_A2,       (uint16_t)(FLP_A2 - FLP_A1));
 	fildic_sys(&a, "CDIREC", 0xc000, 0,      FLP_CDIREC_LO, FLP_CDIREC_HI, (uint16_t)(FLP_CDIREC_HI - FLP_CDIREC_LO));
 	fildic_sys(&a, "GLOBAL", 0x8000, 0,      0, FLP_AK,            FLP_AK);
@@ -184,7 +192,8 @@ static bool synth_flop8(sp45de_crkdir_t *sd)
 	for (unsigned s = 0 ; s < FLP_A3 - FLP_A0 ; s++)
 		memcpy(c5fs_lsec(fs, FLP_CDIREC_LO + s), c5fs_lsec(fs, FLP_A0 + s), C5FS_SSIZE);
 
-	LOG(L_FLOP, "sp45de crkdir: synthesized CROOK-5 FLOP8 area (A0=%u A1=%u A2=%u A3=%u AK=%u)",
+	LOG(L_FLOP, "sp45de crkdir: synthesized CROOK-5 FLOP8 area, variant %c (A0=%u A1=%u A2=%u A3=%u AK=%u)",
+		sd->variant == SP45DE_CRK_VARIANT_T ? 'T' : 'N',
 		FLP_A0, FLP_A1, FLP_A2, FLP_A3, FLP_AK);
 	return true;
 }
@@ -194,7 +203,8 @@ static bool synth_flop8(sp45de_crkdir_t *sd)
 // ---------------------------------------------------------------------------
 
 sp45de_crkdir_t * sp45de_crkdir_create(const char *dir_name, unsigned tracks,
-                                       unsigned spt, unsigned blk_size)
+                                       unsigned spt, unsigned blk_size,
+                                       enum sp45de_crk_variant variant)
 {
 	sp45de_crkdir_t *sd = calloc(1, sizeof(*sd));
 	if (!sd) return NULL;
@@ -202,6 +212,7 @@ sp45de_crkdir_t * sp45de_crkdir_create(const char *dir_name, unsigned tracks,
 	sd->tracks = tracks;
 	sd->spt = spt;
 	sd->blk = blk_size;
+	sd->variant = variant;
 	sd->size = (long)tracks * spt * blk_size;
 
 	sd->mem = malloc(sd->size);

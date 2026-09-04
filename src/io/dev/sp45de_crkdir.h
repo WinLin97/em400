@@ -33,8 +33,20 @@
 
 typedef struct sp45de_crkdir sp45de_crkdir_t;
 
+// CFA can format a FLOP8 area two ways. The "N" (normal) variant writes only the
+// live structures (LABEL, DICDIC, FILDIC, MAP) and leaves LABEL[4] = A3 plain.
+// The "T" (with-transfer / recovery) variant additionally lays down the
+// LOADER/CDIREC/NDIREC copies and marks LABEL[4] with the 0x8000 flag. CROOK-5
+// attaches either. Pick with the "variant" key in the ".crookfs.ini" sidecar
+// ("N"/"T", default N).
+enum sp45de_crk_variant {
+	SP45DE_CRK_VARIANT_N = 0,
+	SP45DE_CRK_VARIANT_T = 1,
+};
+
 sp45de_crkdir_t * sp45de_crkdir_create(const char *dir_name, unsigned tracks,
-                                       unsigned spt, unsigned blk_size);
+                                       unsigned spt, unsigned blk_size,
+                                       enum sp45de_crk_variant variant);
 void sp45de_crkdir_destroy(sp45de_crkdir_t *sd);
 
 // track 0..tracks-1, sector 1..spt ; buf is blk_size (128) bytes. 0 on ok.
