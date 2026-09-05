@@ -36,8 +36,35 @@ struct winchester_dir {
 	long size;
 	unsigned cyls, heads, spt, ssize;
 	unsigned spare;                    // sectors hidden from CROOK (cylinder 0)
+	bool variant_t;                    // CFA "T" - lay down the CDIREC recovery copy
 	c5fs_t *fs;
 };
+
+// Peek "variant = T|N" out of <dir>/.crookfs.ini (the same knob sp45de_crkdir
+// reads). Any line, outside a [file] section; default N.
+static bool dir_wants_variant_t(const char *dir_name)
+{
+	if (!dir_name || !*dir_name) return false;
+	char path[2048];
+	snprintf(path, sizeof(path), "%s/.crookfs.ini", dir_name);
+	FILE *f = fopen(path, "r");
+	if (!f) return false;
+	bool t = false;
+	char line[256];
+	while (fgets(line, sizeof(line), f)) {
+		char *p = line;
+		while (*p == ' ' || *p == '\t') p++;
+		if (*p == '[') continue;
+		if (strncasecmp(p, "variant", 7)) continue;
+		p = strchr(p, '=');
+		if (!p) continue;
+		do { p++; } while (*p == ' ' || *p == '\t');
+		t = (*p == 'T' || *p == 't');
+		break;
+	}
+	fclose(f);
+	return t;
+}
 
 // ---------------------------------------------------------------------------
 // data-only synthesis: a fresh, empty CROOK-5 data area (A0 = 0) at logical 0,
@@ -91,7 +118,11 @@ static bool synth_data_area(winchester_dir_t *wd)
 	if (usable <= SYNTH_AK) return false;
 
 	const uint16_t A1 = SYNTH_A1, A2 = SYNTH_A2, A3 = SYNTH_A3, AK = SYNTH_AK;
-	const unsigned struct_end = A3 + SYNTH_NDIREC;
+	const bool t = wd->variant_t;
+	// N: reserved NDIREC region A3..A3+117. T: a CDIREC recovery copy of
+	// DICDIC+FILDIC+MAP (sectors 0..A3-1) takes that slot and NDIREC shifts
+	// up by 117, and LABEL word 4 carries the 0x8000 flag.
+	const unsigned struct_end = A3 + (t ? 2u : 1u) * SYNTH_NDIREC;
 
 	memset(wd->mem, 0, wd->size);
 	c5fs_t *fs = wd->fs;
@@ -99,7 +130,8 @@ static bool synth_data_area(winchester_dir_t *wd)
 	uint16_t ename[2] = {0, 0};
 	c5fs_r40_pack("DAT", 3, ename);
 
-	uint16_t meta[8] = { ename[0], 0 /*A0*/, A1, A2, A3, AK, 0, 0 };
+	uint16_t meta[8] = { ename[0], 0 /*A0*/, A1, A2,
+	                     (uint16_t)(t ? (A3 | 0x8000) : A3), AK, 0, 0 };
 	for (unsigned s = 0 ; s < 3 ; s++) {
 		uint8_t *sec = c5fs_lsec(fs, s);
 		for (unsigned w = 0 ; w < 8 ; w++) c5fs_wrw(sec, w, meta[w]);
@@ -133,15 +165,25 @@ static bool synth_data_area(winchester_dir_t *wd)
 		c5fs_wrw(sec, 255, idx);
 	}
 
+	const uint16_t ndirec = t ? (uint16_t)(A3 + SYNTH_NDIREC) : A3;
+
 	synth_fildic_sys(fs,  9, "MAP",    ename[0], 0x8000, A2, A3, (uint16_t)(A3 - A2));
 	synth_fildic_sys(fs, 10, "DICDIC", ename[0], 0x8000, 0,  A1, A1);
 	synth_fildic_sys(fs, 29, "GLOBAL", ename[0], 0x8000, 0,  AK, AK);
 	synth_fildic_sys(fs, 32, "FILDIC", ename[0], 0x8000, A1, A2, (uint16_t)(A2 - A1));
-	synth_fildic_sys(fs, 61, "NDIREC", ename[0], 0xc000, A3, (uint16_t)(A3 + SYNTH_NDIREC), SYNTH_NDIREC);
+	if (t)
+		synth_fildic_sys(fs, 56, "CDIREC", ename[0], 0xc000, A3, (uint16_t)(A3 + SYNTH_NDIREC), SYNTH_NDIREC);
+	synth_fildic_sys(fs, 61, "NDIREC", ename[0], 0xc000, ndirec, (uint16_t)(ndirec + SYNTH_NDIREC), SYNTH_NDIREC);
 
 	struct c5_area a;
 	if (!c5fs_area_open(&a, fs, 0)) return false;
 	for (unsigned s = 0 ; s < struct_end ; s++) c5fs_map_set(&a, s);
+	// MAP bits past the last real sector (AK) read as allocated, like CFA
+	for (unsigned s = AK ; s < (unsigned)(A3 - A2) * wd->ssize * 8 ; s++) c5fs_map_set(&a, s);
+
+	if (t)
+		// CDIREC.DAT = a copy of DICDIC + FILDIC + MAP (area sectors 0..A3-1)
+		memcpy(c5fs_lsec(fs, A3), c5fs_lsec(fs, 0), (size_t)A3 * wd->ssize);
 
 	LOG(L_WNCH, "winchester dir: synthesized empty CROOK-5 data area (A1=%u A2=%u A3=%u AK=%u)",
 		A1, A2, A3, AK);
@@ -191,6 +233,7 @@ winchester_dir_t * winchester_dir_create(const char *image_name, const char *dir
 	wd->ssize = sector_size;
 	wd->spare = heads * spt;                        // cylinder 0
 	wd->size = (long)cyls * heads * spt * sector_size;
+	wd->variant_t = dir_wants_variant_t(dir_name);
 
 	wd->mem = malloc(wd->size);
 	if (!wd->mem) {
