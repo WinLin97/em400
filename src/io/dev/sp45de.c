@@ -74,6 +74,18 @@ void sp45de_reset(em400_dev_t *dev)
 
 
 // -----------------------------------------------------------------------
+bool sp45de_geometry_valid(unsigned track, unsigned sector)
+{
+	return (track < SP45DE_TRACK_CNT) && (sector >= 1) && (sector <= SP45DE_SECTOR_PER_TRACK);
+}
+
+// -----------------------------------------------------------------------
+bool sp45de_at_media_end(unsigned track, unsigned sector)
+{
+	return (track == SP45DE_TRACK_LAST) && (sector == SP45DE_SECTOR_PER_TRACK);
+}
+
+// -----------------------------------------------------------------------
 static int sp45de_image_seek(FILE *img_file, unsigned track, unsigned sector)
 {
 	if (!img_file) {
@@ -92,16 +104,22 @@ static int sp45de_image_seek(FILE *img_file, unsigned track, unsigned sector)
 // -----------------------------------------------------------------------
 int sp45de_blk_read(sp45de_t *sp45de, unsigned slot, unsigned track, unsigned sector)
 {
-	int ret = E_ERR;
 	sp45de->buf_pos = 0;
+
+	if ((slot >= EM400_SP45DE_SLOT_COUNT) || !sp45de_geometry_valid(track, sector)) {
+		LOG(L_FLOP, "Read of nonexistent location: slot %i, track %i, sector %i", slot, track, sector);
+		return SP45DE_R_NO_SECTOR;
+	}
+
+	int ret = SP45DE_R_FAULT;
 
 	pthread_mutex_lock(&sp45de->media_mutex);
 	if (sp45de->crkdir[slot]) {
-		ret = (sp45de_crkdir_blk_rd(sp45de->crkdir[slot], track, sector, sp45de->buf) == 0) ? E_OK : E_ERR;
+		ret = (sp45de_crkdir_blk_rd(sp45de->crkdir[slot], track, sector, sp45de->buf) == 0) ? SP45DE_R_OK : SP45DE_R_FAULT;
 		goto fin;
 	}
 	if (sp45de->dir[slot]) {
-		ret = (sp45de_dir_blk_rd(sp45de->dir[slot], track, sector, sp45de->buf) == 0) ? E_OK : E_ERR;
+		ret = (sp45de_dir_blk_rd(sp45de->dir[slot], track, sector, sp45de->buf) == 0) ? SP45DE_R_OK : SP45DE_R_FAULT;
 		goto fin;
 	}
 	if (!sp45de->image[slot]) {
@@ -121,10 +139,14 @@ int sp45de_blk_read(sp45de_t *sp45de, unsigned slot, unsigned track, unsigned se
 	}
 
 	LOG(L_FLOP, "Read sector (%2x %2x %2x %2x ...)", sp45de->buf[0], sp45de->buf[1], sp45de->buf[2], sp45de->buf[3]);
-	ret = E_OK;
+	ret = SP45DE_R_OK;
 
 fin:
 	pthread_mutex_unlock(&sp45de->media_mutex);
+
+	if ((ret == SP45DE_R_OK) && sp45de_at_media_end(track, sector)) {
+		ret = SP45DE_R_MEDIA_END;
+	}
 
 	return ret;
 }
@@ -132,16 +154,22 @@ fin:
 // -----------------------------------------------------------------------
 int sp45de_blk_write(sp45de_t *sp45de, unsigned slot, unsigned track, unsigned sector)
 {
-	int ret = E_ERR;
 	sp45de->buf_pos = 0;
+
+	if ((slot >= EM400_SP45DE_SLOT_COUNT) || !sp45de_geometry_valid(track, sector)) {
+		LOG(L_FLOP, "Write to nonexistent location: slot %i, track %i, sector %i", slot, track, sector);
+		return SP45DE_R_NO_SECTOR;
+	}
+
+	int ret = SP45DE_R_FAULT;
 
 	pthread_mutex_lock(&sp45de->media_mutex);
 	if (sp45de->crkdir[slot]) {
-		ret = (sp45de_crkdir_blk_wr(sp45de->crkdir[slot], track, sector, sp45de->buf) == 0) ? E_OK : E_ERR;
+		ret = (sp45de_crkdir_blk_wr(sp45de->crkdir[slot], track, sector, sp45de->buf) == 0) ? SP45DE_R_OK : SP45DE_R_FAULT;
 		goto fin;
 	}
 	if (sp45de->dir[slot]) {
-		ret = (sp45de_dir_blk_wr(sp45de->dir[slot], track, sector, sp45de->buf) == 0) ? E_OK : E_ERR;
+		ret = (sp45de_dir_blk_wr(sp45de->dir[slot], track, sector, sp45de->buf) == 0) ? SP45DE_R_OK : SP45DE_R_FAULT;
 		goto fin;
 	}
 	if (!sp45de->image[slot]) {
@@ -161,10 +189,14 @@ int sp45de_blk_write(sp45de_t *sp45de, unsigned slot, unsigned track, unsigned s
 	}
 
 	LOG(L_FLOP, "Write sector (%2x %2x %2x %2x ...)", sp45de->buf[0], sp45de->buf[1], sp45de->buf[2], sp45de->buf[3]);
-	ret = E_OK;
+	ret = SP45DE_R_OK;
 
 fin:
 	pthread_mutex_unlock(&sp45de->media_mutex);
+
+	if ((ret == SP45DE_R_OK) && sp45de_at_media_end(track, sector)) {
+		ret = SP45DE_R_MEDIA_END;
+	}
 
 	return ret;
 }

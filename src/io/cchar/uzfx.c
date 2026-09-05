@@ -259,9 +259,12 @@ void uzfx_reset(cchar_unit_t *unit)
 }
 
 // -----------------------------------------------------------------------
-static bool uzfx_address_advance(uzfx_t *uzfx)
+// Step the controller's address register to the next sector, using
+// SP45DE's declared working-area geometry. Wraps back to the start of the
+// medium after the last working sector (whether that end is *reported* to
+// the guest is decided from the sp45de_blk_*() result, not here).
+static void uzfx_address_advance(uzfx_t *uzfx)
 {
-	// TODO: where to advance? where to check for last track? where to set interrupt?
 	uzfx->sector++;
 
 	if (uzfx->sector > SP45DE_SECTOR_PER_TRACK) {
@@ -269,14 +272,23 @@ static bool uzfx_address_advance(uzfx_t *uzfx)
 		uzfx->track++;
 		if (uzfx->track > SP45DE_TRACK_LAST) {
 			uzfx->track = 1;
-			LOG(L_UZFX, "Disk end");
-			return true;
 		}
 	}
 
 	LOG(L_UZFX, "Advanced to track: %i, sector: %i", uzfx->track, uzfx->sector);
+}
 
-	return false;
+// -----------------------------------------------------------------------
+// Map an SP45DE sector-transfer result to the character-channel interrupt
+// bit(s) to raise for it.
+static int uzfx_int_for_result(int result)
+{
+	switch (result) {
+		case SP45DE_R_OK:        return 1 << UZFX_INT_READY;
+		case SP45DE_R_MEDIA_END: return (1 << UZFX_INT_DISK_END) | (1 << UZFX_INT_READY);
+		case SP45DE_R_NO_SECTOR: return 1 << UZFX_INT_SECT_NOT_FOUND;
+		default:                 return 1 << UZFX_INT_HW_ERR; // SP45DE_R_FAULT
+	}
 }
 
 // -----------------------------------------------------------------------
@@ -299,30 +311,24 @@ static void uzfx_on_async_process(uv_async_t *handle)
 
 		LOG(L_UZFX, "Processing state: %s", uzfx_state_names[state]);
 		switch (state) {
-			case UZFX_ST1_SECT_RD:
-				if ((uzfx->sector == 26) && (uzfx->track == 73)) {
-					interrupt |= 1 << UZFX_INT_DISK_END;
-				}
-				if (sp45de_blk_read(uzfx->sp45de, uzfx->drive, uzfx->track, uzfx->sector) != E_OK) {
-					interrupt |= 1 << UZFX_INT_HW_ERR;
-					uzfx->state = UZFX_ST0_IDLE;
-				} else {
-					interrupt |= 1 << UZFX_INT_READY;
-					uzfx->state = UZFX_ST2_BUF_RD;
-				}
+			case UZFX_ST1_SECT_RD: {
+				int r = sp45de_blk_read(uzfx->sp45de, uzfx->drive, uzfx->track, uzfx->sector);
+				interrupt |= uzfx_int_for_result(r);
+				uzfx->state = ((r == SP45DE_R_OK) || (r == SP45DE_R_MEDIA_END)) ? UZFX_ST2_BUF_RD : UZFX_ST0_IDLE;
 				break;
+			}
 			case UZFX_ST2_BUF_RD_CANCEL:
 				;
 				uint8_t c;
 				while (sp45de_read(uzfx->sp45de, &c) == SP45DE_BUF_OK);
 				interrupt |= 1 << UZFX_INT_READY;
 				uzfx->state = UZFX_ST0_IDLE;
-				uzfx_address_advance(uzfx); // TODO: error checking?
+				uzfx_address_advance(uzfx);
 				break;
 			case UZFX_ST3_BUF_WR_START:
 				// TODO: start the engine
 				// TODO: ustalenie sposobu/rodzaju zapisu
-				if ((uzfx->sector == 26) && (uzfx->track == 73)) {
+				if (sp45de_at_media_end(uzfx->track, uzfx->sector)) {
 					interrupt |= 1 << UZFX_INT_DISK_END;
 				}
 				interrupt |= 1 << UZFX_INT_READY;
@@ -332,10 +338,15 @@ static void uzfx_on_async_process(uv_async_t *handle)
 				while (sp45de_write(uzfx->sp45de, 0) == SP45DE_BUF_OK);
 				interrupt |= 1 << UZFX_INT_READY;
 				// fallthrough
-			case UZFX_ST7_SECT_WR:
-				sp45de_blk_write(uzfx->sp45de, uzfx->drive, uzfx->track, uzfx->sector);
-				uzfx_address_advance(uzfx); // TODO: error checking?
+			case UZFX_ST7_SECT_WR: {
+				int r = sp45de_blk_write(uzfx->sp45de, uzfx->drive, uzfx->track, uzfx->sector);
+				if (r == SP45DE_R_MEDIA_END)      interrupt |= 1 << UZFX_INT_DISK_END;
+				else if (r == SP45DE_R_NO_SECTOR) interrupt |= 1 << UZFX_INT_SECT_NOT_FOUND;
+				else if (r == SP45DE_R_FAULT)     interrupt |= 1 << UZFX_INT_HW_ERR;
 				// TODO: jeśli z kontrolą - odczyt
+				if ((r == SP45DE_R_OK) || (r == SP45DE_R_MEDIA_END)) {
+					uzfx_address_advance(uzfx);
+				}
 				if (uzfx->interrupt_required) {
 					interrupt |= 1 << UZFX_INT_READY;
 				}
@@ -347,6 +358,7 @@ static void uzfx_on_async_process(uv_async_t *handle)
 					uzfx->state = UZFX_ST0_IDLE;
 				}
 				break;
+			}
 		}
 
 		if (uzfx->state != state) {
@@ -514,6 +526,17 @@ static int uzfx_cmd_control(cchar_unit_t *unit, const uint16_t *r_arg, int cmd)
 			uzfx->operation = cmd;
 			uzfx_set_address(uzfx, *r_arg);
 			LOG(L_UZFX, "Set new address: drive %i, side: %i, track %i, sector %i", uzfx->drive, uzfx->side, uzfx->track, uzfx->sector);
+			if (!sp45de_geometry_valid(uzfx->track, uzfx->sector)) {
+				// STERUJ to a location the medium does not have: reject it
+				// here rather than let the following PISZ/CZYTAJ address
+				// off the medium. Reported as SECTOR NOT FOUND (DO2/DO3),
+				// controller stays idle.
+				LOG(L_UZFX, "Control command addresses nonexistent track %i sector %i - SECTOR NOT FOUND", uzfx->track, uzfx->sector);
+				atomic_fetch_or(&uzfx->interrupts, 1 << UZFX_INT_SECT_NOT_FOUND);
+				cchar_int_trigger(uzfx->base.chan);
+				io_ret = IO_EN;
+				break;
+			}
 			sp45de_motor_start(uzfx->sp45de);
 			io_ret = IO_OK;
 			break;

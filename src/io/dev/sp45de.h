@@ -27,14 +27,30 @@
 #include "io/dev/sp45de_crkdir.h"
 #include "libem400.h"
 
-#define SP45DE_TRACK_CNT 77
-#define SP45DE_TRACK_LAST 73
+#define SP45DE_TRACK_CNT 77			// physical tracks, numbered 0..76
+#define SP45DE_TRACK_LAST 73		// last track of the working area (74..76 are spare)
 #define SP45DE_SECTOR_PER_TRACK 26
 #define SP45DE_BLK_SIZE 128
 
 enum sp45de_buf_state {
 	SP45DE_BUF_OK, SP45DE_BUF_END
 };
+
+// Result of a sector transfer. The physical medium's geometry is SP45DE's
+// to enforce (the formatter/drive cannot address a track past the pack or
+// a sector outside the track); UZFX only maps the result to a character-
+// channel interrupt spec.
+enum sp45de_result {
+	SP45DE_R_OK = 0,		// sector transferred
+	SP45DE_R_MEDIA_END,		// sector transferred, and it was the last of the working area
+	SP45DE_R_NO_SECTOR,		// (track, sector) outside the physical medium - nothing transferred
+	SP45DE_R_FAULT,			// no diskette in the slot, or a backend I/O error - nothing transferred
+};
+
+// True if (track, sector) is a physically addressable location on the medium.
+bool sp45de_geometry_valid(unsigned track, unsigned sector);
+// True if (track, sector) is the last addressable sector of the working area.
+bool sp45de_at_media_end(unsigned track, unsigned sector);
 
 typedef struct sp45de sp45de_t;
 
