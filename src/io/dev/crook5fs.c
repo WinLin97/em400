@@ -39,9 +39,6 @@
 #define DICDIC_LIBRAR_CODE C5FS_DICDIC_LIBRAR_CODE
 #define SSIZE C5FS_SSIZE
 
-#define FILDIC_COUNTER_SECTOR 25       // FILDIC-relative sector holding the master
-#define FILDIC_COUNTER_WORD   92       //  fs-wide file-creation counter
-
 #define SYNC_QUIESCE_SECS  1
 #define POLL_INTERVAL_SECS 2
 #define MAX_FILE_BYTES     (20L * 1024 * 1024)
@@ -205,14 +202,6 @@ unsigned c5fs_fildic_hash(struct c5_area *a, uint16_t w0, uint16_t w1)
 }
 #define fildic_hash c5fs_fildic_hash
 
-static uint16_t fildic_next_file_id(struct c5_area *a)
-{
-	if (a->A1 + FILDIC_COUNTER_SECTOR >= a->A2) return 0;
-	uint8_t *sec = area_sec(a, a->A1 + FILDIC_COUNTER_SECTOR);
-	uint16_t cur = rdw(sec, FILDIC_COUNTER_WORD);
-	wrw(sec, FILDIC_COUNTER_WORD, (uint16_t)(cur + 1));
-	return cur;
-}
 
 static void fildic_clone_template(struct c5_area *a, uint16_t ext_w,
                                   uint16_t *p2, uint16_t *w6)
@@ -584,11 +573,16 @@ static bool overlay_file(struct c5_area *a, const char *host_path, const char *f
 	ent[0] = nw[0]; ent[1] = nw[1];
 	ent[2] = DICDIC_LIBRAR_CODE;
 	ent[3] = ew;
-	ent[4] = (uint16_t)((long)st->st_size - (long)nsec * SSIZE);
+	// param1 and the "reserved" word 8: CROOK's own CRF/PER leave both 0 for
+	// a plain file. The earlier values here (a negative "unused trailing
+	// bytes" count in param1, a running id in word 8) made CROOK's
+	// open-by-name reject the entry - LIF's full scan still listed it, but
+	// LIST/ASG returned "UNKNOWN FILE".
+	ent[4] = 0;
 	ent[5] = p2;
 	ent[6] = w6;
 	ent[7] = DICDIC_LIBRAR_CODE;
-	ent[8] = fildic_next_file_id(a);
+	ent[8] = 0;
 	ent[9]  = (uint16_t)start;
 	ent[10] = (uint16_t)(start + nsec);
 	ent[11] = (uint16_t)nsec;
