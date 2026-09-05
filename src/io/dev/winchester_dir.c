@@ -218,9 +218,10 @@ static unsigned pick_overlay_area(winchester_dir_t *wd)
 	return 0;
 }
 
-// One synthesised area: its 3-char CROOK name and the host directory feeding it.
+// One synthesised area: its 3-char CROOK name, quantum span and host directory.
 struct wd_area_spec {
 	char name[4];
+	unsigned quanta;
 	char path[1536];
 };
 
@@ -235,6 +236,53 @@ static void area_name_from(const char *sub, char out[4])
 	}
 	if (o == 0) out[o++] = 'X';
 	out[o] = 0;
+}
+
+// Read `<root>/.crookfs.ini`'s "[disk] areas = NAME:quanta ..." line. Returns
+// the entry count, or 0 if there is no such line.
+static unsigned wd_read_layout(const char *root, struct wd_area_spec *out, unsigned max)
+{
+	char path[1536];
+	snprintf(path, sizeof(path), "%s/.crookfs.ini", root);
+	FILE *f = fopen(path, "r");
+	if (!f) return 0;
+	unsigned n = 0;
+	char line[512];
+	bool in_disk = false;
+	while (fgets(line, sizeof(line), f)) {
+		char *p = line;
+		while (*p == ' ' || *p == '\t') p++;
+		if (*p == '[') { in_disk = !strncasecmp(p, "[disk]", 6); continue; }
+		if (!in_disk || strncasecmp(p, "areas", 5)) continue;
+		p = strchr(p, '=');
+		if (!p) break;
+		for (char *tok = strtok(p + 1, " \t\r\n,") ; tok && n < max ; tok = strtok(NULL, " \t\r\n,")) {
+			char *colon = strchr(tok, ':');
+			unsigned q = colon ? (unsigned) strtoul(colon + 1, NULL, 10) : 1;
+			if (colon) *colon = 0;
+			area_name_from(tok, out[n].name);
+			out[n].quanta = q ? q : 1;
+			out[n].path[0] = 0;
+			n++;
+		}
+		break;
+	}
+	fclose(f);
+	return n;
+}
+
+// Append the resolved "[disk] areas = ..." layout to `<root>/.crookfs.ini` so
+// it becomes a stable, editable record (and the config tool reads the same).
+static void wd_write_layout(const char *root, const struct wd_area_spec *spec, unsigned n)
+{
+	char path[1536];
+	snprintf(path, sizeof(path), "%s/.crookfs.ini", root);
+	FILE *f = fopen(path, "a");
+	if (!f) return;
+	fprintf(f, "\n[disk]\nareas =");
+	for (unsigned i = 0 ; i < n ; i++) fprintf(f, " %s:%u", spec[i].name, spec[i].quanta);
+	fprintf(f, "\n");
+	fclose(f);
 }
 
 // Enumerate the areas a synth mount produces: root files -> "DAT", each
@@ -254,6 +302,7 @@ static unsigned wd_collect_areas(const char *root, struct wd_area_spec *out, uns
 			if (stat(p, &st)) continue;
 			if (S_ISDIR(st.st_mode)) {
 				area_name_from(de->d_name, out[n].name);
+				out[n].quanta = 0;
 				snprintf(out[n].path, sizeof(out[n].path), "%s", p);
 				n++;
 			} else if (S_ISREG(st.st_mode)) {
@@ -344,20 +393,44 @@ winchester_dir_t * winchester_dir_create(const char *image_name, const char *dir
 			}
 		}
 	} else {
-		// synth: root files -> "DAT", each subdir -> its own area, quanta split evenly
-		struct wd_area_spec spec[WD_MAX_AREAS];
-		unsigned n = dir_name && *dir_name ? wd_collect_areas(dir_name, spec, WD_MAX_AREAS) : 0;
-		if (n == 0) { memcpy(spec[0].name, "DAT", 4); spec[0].path[0] = 0; n = 1; }
-
-		memset(wd->mem, 0, wd->size);
+		// synth. Layout comes from "[disk] areas = NAME:quanta ..." in
+		// <root>/.crookfs.ini if present; otherwise derive it (root files ->
+		// "DAT", each subdir -> its own area, quanta split evenly) and write
+		// it back so it is a stable, editable record the config tool shares.
+		struct wd_area_spec spec[WD_MAX_AREAS], sub[WD_MAX_AREAS];
+		unsigned n = 0, nsub = 0;
 		unsigned usable = cyls * heads * spt - wd->spare;
 		unsigned total_q = usable / WINCH_QUANT;
-		unsigned per_q = total_q / n;
-		if (per_q == 0) { LOGERR("winchester dir: %u areas do not fit in %u quanta.", n, total_q); winchester_dir_destroy(wd); return NULL; }
 
-		unsigned base = 0;
+		if (dir_name && *dir_name) {
+			nsub = wd_collect_areas(dir_name, sub, WD_MAX_AREAS);
+			n = wd_read_layout(dir_name, spec, WD_MAX_AREAS);
+		}
+		if (n == 0) {
+			// derive: use the collected subdir/root areas, split quanta evenly
+			n = nsub ? nsub : (memcpy(spec[0].name, "DAT", 4), spec[0].quanta = 0, spec[0].path[0] = 0, 1u);
+			unsigned per_q = n ? total_q / n : total_q;
+			for (unsigned i = 0 ; i < n ; i++) {
+				if (nsub) spec[i] = sub[i];
+				spec[i].quanta = per_q;
+			}
+			if (dir_name && *dir_name) wd_write_layout(dir_name, spec, n);
+		}
+		// resolve each area's host path: match the ini name against a subdir
 		for (unsigned i = 0 ; i < n ; i++) {
-			if (!synth_one_area(wd->scratch, base, wd->ssize, spec[i].name, per_q, wd->variant_t)) {
+			if (spec[i].path[0]) continue;
+			for (unsigned j = 0 ; j < nsub ; j++)
+				if (!strcmp(spec[i].name, sub[j].name)) { snprintf(spec[i].path, sizeof(spec[i].path), "%s", sub[j].path); break; }
+			if (!spec[i].path[0] && !strcmp(spec[i].name, "DAT") && dir_name && *dir_name)
+				snprintf(spec[i].path, sizeof(spec[i].path), "%s", dir_name);
+		}
+
+		memset(wd->mem, 0, wd->size);
+		unsigned base = 0, used_q = 0;
+		for (unsigned i = 0 ; i < n ; i++) {
+			unsigned q = spec[i].quanta ? spec[i].quanta : 1;
+			if (used_q + q > total_q) { LOGERR("winchester dir: area layout (%u quanta) exceeds the disk (%u).", used_q + q, total_q); winchester_dir_destroy(wd); return NULL; }
+			if (!synth_one_area(wd->scratch, base, wd->ssize, spec[i].name, q, wd->variant_t)) {
 				LOGERR("winchester dir: failed to synthesize area \"%s\".", spec[i].name);
 				winchester_dir_destroy(wd);
 				return NULL;
@@ -365,7 +438,8 @@ winchester_dir_t * winchester_dir_create(const char *image_name, const char *dir
 			wd->area[i] = c5fs_create(wd->mem, wd->size, wd->spare, L_WNCH);
 			if (wd->area[i] && spec[i].path[0])
 				c5fs_mount_dir(wd->area[i], spec[i].path, base, FSMETA_SIDECAR);
-			base += per_q * WINCH_QUANT;
+			base += q * WINCH_QUANT;
+			used_q += q;
 		}
 		wd->narea = n;
 	}
