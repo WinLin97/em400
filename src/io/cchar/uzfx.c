@@ -24,14 +24,16 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <stdatomic.h>
+#include <uv.h>
 
 #include "io/defs.h"
-#include "io/cchar/cchar.h"
 #include "io/cchar/cchar.h"
 #include "io/cchar/uzfx.h"
 #include "log.h"
 
 #include "io/dev/sp45de.h"
+
+extern uv_loop_t *ioloop;
 
 enum uzfx_states {
 	UZFX_ST0_IDLE,				// St.0 idle state
@@ -42,7 +44,6 @@ enum uzfx_states {
 	UZFX_ST3_BUF_WR_CANCEL,		// St.3 start buffer cancel
 	UZFX_ST5_BUF_WR,			// cpu to buffer write St.3 (bad sector mark, F8) St.5 (regular data FB)
 	UZFX_ST7_SECT_WR,			// buffer to disk write St.6 (with check), St.7 (no check)
-	UZFX_STX_QUIT,
 };
 
 static const char *uzfx_state_names[] = {
@@ -54,7 +55,6 @@ static const char *uzfx_state_names[] = {
 	[UZFX_ST3_BUF_WR_CANCEL] = "buffer write cancel",
 	[UZFX_ST5_BUF_WR] = "buffer write",
 	[UZFX_ST7_SECT_WR] = "sector write",
-	[UZFX_STX_QUIT] = "quit",
 };
 
 
@@ -106,24 +106,43 @@ typedef struct uzfx uzfx_t;
 struct uzfx {
 	cchar_unit_t base;
 	int drive, side, track, sector;
-	pthread_t worker;
+
+	// State-machine processing used to run on a dedicated pthread, woken by
+	// a condition variable from the CPU-facing cmd_* functions below. That
+	// design carried a standing TODO ("multithreading fixes... or just
+	// migrate to libuv") and, in practice, could leave a state transition's
+	// completion interrupt unraised if the CPU-thread and worker-thread
+	// sides of a signal/wait pair didn't line up - the same class of bug
+	// uzdat.c (this driver's sibling on the same character channel) never
+	// had, because it does all its async work as callbacks on the shared
+	// `ioloop` instead of a second thread. This now follows uzdat.c's
+	// pattern: `async_process` is woken (uv_async_send) whenever a cmd_*
+	// function moves the state machine into a state that needs disk-level
+	// processing, and `uzfx_on_async_process()` runs that processing (and
+	// chains through any further non-wait states) as a plain callback on
+	// the same loop - no second thread, no lost-wakeup surface at all.
+	uv_async_t async_process;
+	int open_handles;
+
+	// state_mutex still guards every field below: cmd_* functions run on
+	// the CPU emulation thread, async_process on the ioloop thread.
 	pthread_mutex_t state_mutex;
-	pthread_cond_t state_cond;
 	int state;
 	int operation;
 	bool pending_buf_write;
 	bool interrupt_required;
 	// Pending interrupt bitmask. Atomic and deliberately NOT guarded by
 	// state_mutex: has_interrupt()/intspec() are reached from the channel while
-	// it holds int_mutex, and the worker publishes them while holding
+	// it holds int_mutex, and async_process publishes them while holding
 	// state_mutex - guarding this field with state_mutex too would close a
-	// state_mutex <-> int_mutex cycle and deadlock. With it atomic, the worker
-	// can publish + latch the interrupt in one critical section.
+	// state_mutex <-> int_mutex cycle and deadlock. With it atomic, the
+	// processing callback can publish + latch the interrupt in one critical
+	// section.
 	atomic_int interrupts;
 	sp45de_t *sp45de;
 };
 
-static void * uzfx_worker_loop(void *ptr);
+static void uzfx_on_async_process(uv_async_t *handle);
 static void uzfx_reset_state(uzfx_t *u);
 void uzfx_shutdown(cchar_unit_t *unit);
 void uzfx_reset(cchar_unit_t *unit);
@@ -144,6 +163,25 @@ static void uzfx_set_address(uzfx_t *uzfx, uint16_t addr)
 }
 
 // -----------------------------------------------------------------------
+static void uzfx_try_free(uzfx_t *uzfx)
+{
+	if (uzfx->open_handles <= 0) {
+		LOG(L_UZFX, "No more open handles, UZFX freeing resources");
+		pthread_mutex_destroy(&uzfx->state_mutex);
+		uzfx->sp45de->base.shutdown((em400_dev_t *) uzfx->sp45de);
+		free(uzfx);
+	}
+}
+
+// -----------------------------------------------------------------------
+static void uzfx_on_handle_close(uv_handle_t *handle)
+{
+	uzfx_t *uzfx = (uzfx_t *) uv_handle_get_data(handle);
+	uzfx->open_handles--;
+	uzfx_try_free(uzfx);
+}
+
+// -----------------------------------------------------------------------
 cchar_unit_t * uzfx_create(int dev_num, em400_dev_t *dev)
 {
 	if (dev->type != EM400_DEV_SP45DE) {
@@ -154,7 +192,7 @@ cchar_unit_t * uzfx_create(int dev_num, em400_dev_t *dev)
 	uzfx_t *uzfx = (uzfx_t *) calloc(1, sizeof(uzfx_t));
 	if (!uzfx) {
 		LOGERR("Device %i: UZFX failed to allocate memory for its structure", dev_num);
-		goto fail;
+		return NULL;
 	}
 
 	uzfx->sp45de = (sp45de_t *) dev;
@@ -168,26 +206,23 @@ cchar_unit_t * uzfx_create(int dev_num, em400_dev_t *dev)
 
 	if (pthread_mutex_init(&uzfx->state_mutex, NULL)) {
 		LOGERR("Device %i: UZFX failed to initialize status mutex.", dev_num);
-		goto fail;
+		free(uzfx);
+		return NULL;
 	}
 
-	if (pthread_cond_init(&uzfx->state_cond, NULL)) {
-		LOGERR("Device %i: UZFX failed to initialize status conditional", dev_num);
-		goto fail;
+	int res = uv_async_init(ioloop, &uzfx->async_process, uzfx_on_async_process);
+	if (res) {
+		LOGERR("Device %i: UZFX async_process handler init error: %s", dev_num, uv_strerror(res));
+		pthread_mutex_destroy(&uzfx->state_mutex);
+		free(uzfx);
+		return NULL;
 	}
-
-	if (pthread_create(&uzfx->worker, NULL, uzfx_worker_loop, uzfx)) {
-		LOGERR("Device %i: UZFX failed to spawn worker thread.", dev_num);
-		goto fail;
-	}
+	uv_handle_set_data((uv_handle_t *) &uzfx->async_process, uzfx);
+	uzfx->open_handles++;
 
 	uzfx_reset_state(uzfx);
 
 	return (cchar_unit_t *) uzfx;
-
-fail:
-	uzfx_shutdown((cchar_unit_t *) uzfx);
-	return NULL;
 }
 
 // -----------------------------------------------------------------------
@@ -208,18 +243,9 @@ void uzfx_shutdown(cchar_unit_t *unit)
 	uzfx_t *uzfx = (uzfx_t *) unit;
 	if (!uzfx) return;
 
-	pthread_mutex_lock(&uzfx->state_mutex);
-	uzfx->state = UZFX_STX_QUIT;
-	pthread_cond_signal(&uzfx->state_cond);
-	pthread_mutex_unlock(&uzfx->state_mutex);
-
-	if (uzfx->worker) pthread_join(uzfx->worker, NULL);
-	pthread_mutex_destroy(&uzfx->state_mutex);
-	pthread_cond_destroy(&uzfx->state_cond);
-
-	uzfx->sp45de->base.shutdown((em400_dev_t *) uzfx->sp45de);
-
-	free(uzfx);
+	if (!uv_is_closing((uv_handle_t *) &uzfx->async_process)) {
+		uv_close((uv_handle_t *) &uzfx->async_process, uzfx_on_handle_close);
+	}
 }
 
 // -----------------------------------------------------------------------
@@ -254,28 +280,25 @@ static bool uzfx_address_advance(uzfx_t *uzfx)
 }
 
 // -----------------------------------------------------------------------
-static void * uzfx_worker_loop(void *ptr)
+// Runs the disk-level state machine as far as it can go without further CPU
+// input: any state other than the three "wait states" (idle, and the two
+// byte-at-a-time transfer states serviced directly by uzfx_cmd_read/write)
+// gets processed here, chaining through consecutive states in one call
+// (mirroring what the old worker thread did in one loop iteration after
+// another) until a wait state is reached. Invoked once up front after a
+// cmd_* function moves the state machine forward, and re-invoked via
+// uv_async_send() whenever that happens again.
+static void uzfx_on_async_process(uv_async_t *handle)
 {
-	uzfx_t *uzfx = (uzfx_t *) ptr;
-	bool quit = false;
+	uzfx_t *uzfx = (uzfx_t *) handle->data;
 
-	while (!quit) {
-		pthread_mutex_lock(&uzfx->state_mutex);
-		// last two states are not handled here
-		// TODO: multithreading fixes... (or just migrate to libuv)
-		while ((uzfx->state == UZFX_ST0_IDLE) || (uzfx->state == UZFX_ST2_BUF_RD) || (uzfx->state == UZFX_ST5_BUF_WR)) {
-			LOG(L_UZFX, "Worker waiting for state change");
-			pthread_cond_wait(&uzfx->state_cond, &uzfx->state_mutex);
-		}
+	pthread_mutex_lock(&uzfx->state_mutex);
+	while ((uzfx->state != UZFX_ST0_IDLE) && (uzfx->state != UZFX_ST2_BUF_RD) && (uzfx->state != UZFX_ST5_BUF_WR)) {
 		int interrupt = UZFX_INT_NONE;
 		int state = uzfx->state;
 
-		LOG(L_UZFX, "Worker processing state: %s", uzfx_state_names[state]);
+		LOG(L_UZFX, "Processing state: %s", uzfx_state_names[state]);
 		switch (state) {
-			case UZFX_STX_QUIT:
-
-				quit = true;
-				break;
 			case UZFX_ST1_SECT_RD:
 				if ((uzfx->sector == 26) && (uzfx->track == 73)) {
 					interrupt |= 1 << UZFX_INT_DISK_END;
@@ -289,6 +312,7 @@ static void * uzfx_worker_loop(void *ptr)
 				}
 				break;
 			case UZFX_ST2_BUF_RD_CANCEL:
+				;
 				uint8_t c;
 				while (sp45de_read(uzfx->sp45de, &c) == SP45DE_BUF_OK);
 				interrupt |= 1 << UZFX_INT_READY;
@@ -326,12 +350,13 @@ static void * uzfx_worker_loop(void *ptr)
 		}
 
 		if (uzfx->state != state) {
-			LOG(L_UZFX, "Worker changed state to: %s", uzfx_state_names[uzfx->state]);
+			LOG(L_UZFX, "State changed to: %s", uzfx_state_names[uzfx->state]);
+		}
+
+		if (uzfx->state == UZFX_ST0_IDLE) {
 			// operation finished: let the drive spin down so the doors unlock
 			// (a real SP45DE stops the motor a couple seconds after going idle)
-			if (uzfx->state == UZFX_ST0_IDLE) {
-				sp45de_motor_stop(uzfx->sp45de);
-			}
+			sp45de_motor_stop(uzfx->sp45de);
 		}
 
 		if (interrupt != UZFX_INT_NONE) {
@@ -340,15 +365,11 @@ static void * uzfx_worker_loop(void *ptr)
 			// deadlock because has_interrupt()/intspec() are lock-free.
 			atomic_fetch_or(&uzfx->interrupts, interrupt);
 			uzfx->interrupt_required = false;
-			LOG(L_UZFX, "Worker sending interrupt");
+			LOG(L_UZFX, "Sending interrupt");
 			cchar_int_trigger(uzfx->base.chan);
 		}
-		pthread_mutex_unlock(&uzfx->state_mutex);
-
 	}
-
-	LOG(L_UZFX, "Leaving worker loop");
-	return NULL;
+	pthread_mutex_unlock(&uzfx->state_mutex);
 }
 
 // -----------------------------------------------------------------------
@@ -383,6 +404,7 @@ static int uzfx_cmd_read(cchar_unit_t *unit, uint16_t *r_arg)
 {
 	uzfx_t *uzfx = (uzfx_t *) unit;
 	int io_ret;
+	bool kick_worker = false;
 
 	pthread_mutex_lock(&uzfx->state_mutex);
 	int old_state = uzfx->state;
@@ -391,7 +413,7 @@ static int uzfx_cmd_read(cchar_unit_t *unit, uint16_t *r_arg)
 		case UZFX_ST0_IDLE:
 			uzfx->state = UZFX_ST1_SECT_RD;
 			sp45de_motor_start(uzfx->sp45de);
-			pthread_cond_signal(&uzfx->state_cond);
+			kick_worker = true;
 			io_ret = IO_EN;
 			break;
 		case UZFX_ST2_BUF_RD:
@@ -403,10 +425,23 @@ static int uzfx_cmd_read(cchar_unit_t *unit, uint16_t *r_arg)
 				sp45de_motor_stop(uzfx->sp45de);  // idle: allow the doors to unlock
 			}
 			*r_arg = c;
-			atomic_store(&uzfx->interrupts, UZFX_INT_NONE);
+			// Clear only the interrupt this read is servicing (READY), not
+			// the whole bitmask - a co-pending bit set alongside it (eg.
+			// DISK_END, raised together with READY when the last sector of
+			// the disk was involved) must survive to be reported on its own
+			// later, not be silently discarded here.
+			atomic_fetch_and(&uzfx->interrupts, ~(1 << UZFX_INT_READY));
 			io_ret = IO_OK;
 			break;
 		default:
+			// A buf-read reissued before the in-flight operation has
+			// answered (its READY interrupt not yet delivered): per the
+			// MDE-400 DTR this is "not ready", answered EN with no fault -
+			// NOT AWARIA (which the DTR reserves for missing voltages / not
+			// ready / wrong side reported by the drive itself). The pending
+			// operation's own async processing is guaranteed to raise an
+			// interrupt, so the guest wakes and retries; nothing hangs.
+			LOG(L_UZFX, "Buf read command while in state %s - answering EN (busy)", uzfx_state_names[uzfx->state]);
 			io_ret = IO_EN;
 			break;
 	}
@@ -414,6 +449,8 @@ static int uzfx_cmd_read(cchar_unit_t *unit, uint16_t *r_arg)
 		LOG(L_UZFX, "State changed to: %s", uzfx_state_names[uzfx->state]);
 	}
 	pthread_mutex_unlock(&uzfx->state_mutex);
+
+	if (kick_worker) uv_async_send(&uzfx->async_process);
 
 	return io_ret;
 }
@@ -423,6 +460,7 @@ static int uzfx_cmd_write(cchar_unit_t *unit, const uint16_t *r_arg)
 {
 	uzfx_t *uzfx = (uzfx_t *) unit;
 	int io_ret;
+	bool kick_worker = false;
 
 	pthread_mutex_lock(&uzfx->state_mutex);
 	int old_state = uzfx->state;
@@ -431,13 +469,13 @@ static int uzfx_cmd_write(cchar_unit_t *unit, const uint16_t *r_arg)
 		case UZFX_ST0_IDLE:
 			uzfx->state = UZFX_ST3_BUF_WR_START;
 			sp45de_motor_start(uzfx->sp45de);
-			pthread_cond_signal(&uzfx->state_cond);
+			kick_worker = true;
 			io_ret = IO_EN;
 			break;
 		case UZFX_ST5_BUF_WR:
 			if (sp45de_write(uzfx->sp45de, (uint8_t) *r_arg) == SP45DE_BUF_END) {
 				uzfx->state = UZFX_ST7_SECT_WR;
-				pthread_cond_signal(&uzfx->state_cond);
+				kick_worker = true;
 			}
 			io_ret = IO_OK;
 			break;
@@ -447,6 +485,9 @@ static int uzfx_cmd_write(cchar_unit_t *unit, const uint16_t *r_arg)
 			io_ret = IO_EN;
 			break;
 		default:
+			// Reissued before the in-flight operation answered: EN (busy),
+			// no fault - same rationale as uzfx_cmd_read's default case.
+			LOG(L_UZFX, "Buf write command while in state %s - answering EN (busy)", uzfx_state_names[uzfx->state]);
 			io_ret = IO_EN;
 			break;
 	}
@@ -454,6 +495,8 @@ static int uzfx_cmd_write(cchar_unit_t *unit, const uint16_t *r_arg)
 		LOG(L_UZFX, "State changed to: %s", uzfx_state_names[uzfx->state]);
 	}
 	pthread_mutex_unlock(&uzfx->state_mutex);
+
+	if (kick_worker) uv_async_send(&uzfx->async_process);
 
 	return io_ret;
 }
@@ -475,7 +518,13 @@ static int uzfx_cmd_control(cchar_unit_t *unit, const uint16_t *r_arg, int cmd)
 			io_ret = IO_OK;
 			break;
 		default:
-			// this is illegal and puts the controllen in a state that won't send an interrupt
+			// STERUJ while the controller is not idle: per the MDE-400 DTR
+			// a control command is only valid in the ready (W) state and is
+			// otherwise answered EN without a READY - the guest is expected
+			// to wait out the in-flight operation (which raises its own
+			// completion interrupt) and retry. Answering it with AWARIA
+			// instead would be a spurious hardware fault.
+			LOG(L_UZFX, "Control command %i while not idle (state: %s) - answering EN (busy)", cmd, uzfx_state_names[uzfx->state]);
 			io_ret = IO_EN;
 			break;
 	}
@@ -508,6 +557,7 @@ static int uzfx_cmd_detach(cchar_unit_t *unit)
 {
 	uzfx_t *uzfx = (uzfx_t *) unit;
 	int io_ret;
+	bool kick_worker = false;
 
 	// TODO: detach zakończony EN nie jest wykonanym detachem w rozumieniu następnych komend
 	// (i.e. następujące "STERUJ" zakończy się EN i nie będzie się dało z tego wyjść)
@@ -518,17 +568,24 @@ static int uzfx_cmd_detach(cchar_unit_t *unit)
 	switch (uzfx->state) {
 		case UZFX_ST0_IDLE:
 			sp45de_motor_stop(uzfx->sp45de);
-			atomic_store(&uzfx->interrupts, UZFX_INT_NONE);
+			// Same fix as uzfx_cmd_read's ST2_BUF_RD case: only clear READY
+			// (what a DETACH-while-idle is acknowledging), never the whole
+			// bitmask - this is exactly the closing ODŁĄCZ of the documented
+			// "ODŁĄCZ, STERUJ, PISZ, ODŁĄCZ" sequence, issued right after a
+			// sector write that may have *also* set DISK_END alongside
+			// READY; wiping everything here was silently discarding
+			// DISK_END before the guest ever got a chance to read it.
+			atomic_fetch_and(&uzfx->interrupts, ~(1 << UZFX_INT_READY));
 			io_ret = IO_OK;
 			break;
 		case UZFX_ST2_BUF_RD:
 			uzfx->state = UZFX_ST2_BUF_RD_CANCEL;
-			pthread_cond_signal(&uzfx->state_cond);
+			kick_worker = true;
 			io_ret = IO_EN;
 			break;
 		case UZFX_ST5_BUF_WR:
 			uzfx->state = UZFX_ST3_BUF_WR_CANCEL;
-			pthread_cond_signal(&uzfx->state_cond);
+			kick_worker = true;
 			io_ret = IO_EN;
 			break;
 		case UZFX_ST7_SECT_WR:
@@ -546,6 +603,8 @@ static int uzfx_cmd_detach(cchar_unit_t *unit)
 		LOG(L_UZFX, "State changed to: %s", uzfx_state_names[uzfx->state]);
 	}
 	pthread_mutex_unlock(&uzfx->state_mutex);
+
+	if (kick_worker) uv_async_send(&uzfx->async_process);
 
 	return io_ret;
 }
