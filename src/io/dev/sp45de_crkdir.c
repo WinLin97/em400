@@ -35,7 +35,7 @@
 //     0        LABEL
 //     1-7      LOADER.FLP (reserved, zero)
 //     8-16     DICDIC        (LABEL mirrored in sec 8/9/10 words 0-7; LIBRAR, BOSS)
-//     17-23    FILDIC        (8 system pseudo-files; 4/2/1 hash cascade)
+//     17-23    FILDIC        (N: 4 pseudo-files, T: 8; 4/2/1 hash cascade)
 //     24       MAP.FLP       (480-bit allocation bitmap, sectors 0-58 allocated)
 //     25-41    CDIREC.FLP    (recovery copy of the DICDIC sectors)
 //     42-58    NDIREC.FLP    (reserved, zero)
@@ -164,33 +164,37 @@ static bool synth_flop8(sp45de_crkdir_t *sd)
 	struct c5_area a;
 	if (!c5fs_area_open(&a, fs, 0)) return false;
 
-	// The system pseudo-files, in the order BOSS's CFA creates them. A pure "N"
-	// format writes only FILDIC/GLOBAL/LABEL/DICDIC and omits the recovery-region
-	// copies; we always lay down the full "T" set (plus the CDIREC copy and the
-	// allocated MAP below) - CROOK-5 reads only what it needs from either, and
-	// the extra entries are harmless. `variant` currently only toggles the
-	// LABEL[4] marker; a leaner N image is future work.
-	fildic_sys(&a, "FILDIC", 0x8000, 0,      FLP_A1, FLP_A2,       (uint16_t)(FLP_A2 - FLP_A1));
-	fildic_sys(&a, "CDIREC", 0xc000, 0,      FLP_CDIREC_LO, FLP_CDIREC_HI, (uint16_t)(FLP_CDIREC_HI - FLP_CDIREC_LO));
-	fildic_sys(&a, "GLOBAL", 0x8000, 0,      0, FLP_AK,            FLP_AK);
-	fildic_sys(&a, "MAP",    0x8000, 0,      FLP_A2, FLP_A3,       (uint16_t)(FLP_A3 - FLP_A2));
-	fildic_sys(&a, "NDIREC", 0xc000, 0xff43, FLP_CDIREC_HI, FLP_NDIREC_HI, (uint16_t)(FLP_NDIREC_HI - FLP_CDIREC_HI));
-	fildic_sys(&a, "LABEL",  0x8000, 0,      0, 1,                1);
-	fildic_sys(&a, "DICDIC", 0x8000, 0,      FLP_A0, FLP_A1,      (uint16_t)(FLP_A1 - FLP_A0));
-	fildic_sys(&a, "LOADER", 0xc000, 0xff43, FLP_LOADER_LO, FLP_A0, (uint16_t)(FLP_A0 - FLP_LOADER_LO));
+	const bool t = (sd->variant == SP45DE_CRK_VARIANT_T);
 
-	// --- MAPA @ 24: system sectors 0..58 allocated; sectors >= AK marked used
-	// so they're never handed out (bits 480.. -> 0xffff padding to sector end) ---
-	for (unsigned s = 0 ; s < FLP_STRUCT_END ; s++) c5fs_map_set(&a, s);
+	// The system pseudo-files, in the order BOSS's CFA creates them. Verified
+	// against reference images: "N" writes only these four; "T" adds the four
+	// recovery-region labels, the CDIREC copy and the allocated MAP below.
+	fildic_sys(&a, "FILDIC", 0x8000, 0, FLP_A1, FLP_A2, (uint16_t)(FLP_A2 - FLP_A1));
+	if (t)
+		fildic_sys(&a, "CDIREC", 0xc000, 0, FLP_CDIREC_LO, FLP_CDIREC_HI, (uint16_t)(FLP_CDIREC_HI - FLP_CDIREC_LO));
+	fildic_sys(&a, "GLOBAL", 0x8000, 0, 0, FLP_AK, FLP_AK);
+	if (t) {
+		fildic_sys(&a, "MAP",    0x8000, 0,      FLP_A2, FLP_A3,       (uint16_t)(FLP_A3 - FLP_A2));
+		fildic_sys(&a, "NDIREC", 0xc000, 0xff43, FLP_CDIREC_HI, FLP_NDIREC_HI, (uint16_t)(FLP_NDIREC_HI - FLP_CDIREC_HI));
+	}
+	fildic_sys(&a, "LABEL",  0x8000, 0, 0, 1, 1);
+	fildic_sys(&a, "DICDIC", 0x8000, 0, FLP_A0, FLP_A1, (uint16_t)(FLP_A1 - FLP_A0));
+	if (t)
+		fildic_sys(&a, "LOADER", 0xc000, 0xff43, FLP_LOADER_LO, FLP_A0, (uint16_t)(FLP_A0 - FLP_LOADER_LO));
+
+	// --- MAPA @ 24 ---
+	if (t)
+		for (unsigned s = 0 ; s < FLP_STRUCT_END ; s++) c5fs_map_set(&a, s);
+	// sectors >= AK marked used so they're never handed out
 	{
 		uint8_t *m = c5fs_lsec(fs, FLP_A2);
 		for (unsigned w = (FLP_AK + 15) / 16 ; w < C5FS_SSIZE / 2 ; w++) c5fs_wrw(m, w, 0xffff);
 	}
 
-	// --- CDIREC.FLP @ 25..41: recovery copy of DICDIC + FILDIC + MAPA
-	// (logical sectors A0..A3), 17 sectors ---
-	for (unsigned s = 0 ; s < FLP_A3 - FLP_A0 ; s++)
-		memcpy(c5fs_lsec(fs, FLP_CDIREC_LO + s), c5fs_lsec(fs, FLP_A0 + s), C5FS_SSIZE);
+	// --- CDIREC.FLP @ 25..41 (T only): recovery copy of DICDIC + FILDIC + MAPA ---
+	if (t)
+		for (unsigned s = 0 ; s < FLP_A3 - FLP_A0 ; s++)
+			memcpy(c5fs_lsec(fs, FLP_CDIREC_LO + s), c5fs_lsec(fs, FLP_A0 + s), C5FS_SSIZE);
 
 	LOG(L_FLOP, "sp45de crkdir: synthesized CROOK-5 FLOP8 area, variant %c (A0=%u A1=%u A2=%u A3=%u AK=%u)",
 		sd->variant == SP45DE_CRK_VARIANT_T ? 'T' : 'N',

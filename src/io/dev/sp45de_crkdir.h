@@ -35,12 +35,18 @@
 
 typedef struct sp45de_crkdir sp45de_crkdir_t;
 
-// CFA can format a FLOP8 area two ways. The "N" (normal) variant writes only the
-// live structures (LABEL, DICDIC, FILDIC, MAP) and leaves LABEL[4] = A3 plain.
-// The "T" (with-transfer / recovery) variant additionally lays down the
-// LOADER/CDIREC/NDIREC copies and marks LABEL[4] with the 0x8000 flag. CROOK-5
-// attaches either. Pick with the "variant" key in the ".crookfs.ini" sidecar
-// ("N"/"T", default N).
+// "T" / "N" is not an abstract mode name. When BOSS's CFA subcommand formats
+// an area it stops and asks the operator:
+//
+//   Czy tworzyc zbior na biezaca kopie skorowidzy (T|N) ?
+//   ("create a file for the current copy of the directories?")
+//
+// T lays down the LOADER/CDIREC/NDIREC directory-recovery copies and marks
+// LABEL[4] with the 0x8000 flag; N formats with only the live structures
+// (LABEL, DICDIC, FILDIC, MAP) and LABEL[4] = A3 plain. CROOK-5 attaches
+// either. em400 has no operator to type the letter, so it takes the answer
+// from the "directory_copy" key in the ".crookfs.ini" sidecar (T/N, or
+// Y/N; default N).
 enum sp45de_crk_variant {
 	SP45DE_CRK_VARIANT_N = 0,
 	SP45DE_CRK_VARIANT_T = 1,
