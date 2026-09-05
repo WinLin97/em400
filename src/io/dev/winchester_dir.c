@@ -20,6 +20,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
+#include <ctype.h>
+#include <dirent.h>
+#include <sys/stat.h>
 
 #include "log.h"
 #include "io/dev/dev.h"
@@ -27,10 +30,13 @@
 #include "io/dev/winchester_dir.h"
 
 #define FSMETA_SIDECAR ".crookfs.ini"
+#define WD_MAX_AREAS 8
 
 // Directory-backed Winchester: the whole disk lives in RAM, either loaded from a
-// base CROOK-5 image or synthesized empty. The host directory is mirrored into
-// one data area's LIBRAR by the shared crook5fs engine.
+// base CROOK-5 image or synthesized empty. Each mounted host directory is
+// mirrored into one CROOK-5 area's LIBRAR by the shared crook5fs engine. In
+// synth mode the mount root's files become area "DAT" and each immediate
+// subdirectory becomes its own area (named after the subdir, 3 R40 chars).
 
 struct winchester_dir {
 	uint8_t *mem;
@@ -38,7 +44,9 @@ struct winchester_dir {
 	unsigned cyls, heads, spt, ssize;
 	unsigned spare;                    // sectors hidden from CROOK (cylinder 0)
 	bool variant_t;                    // CFA "T" - lay down the CDIREC recovery copy
-	c5fs_t *fs;
+	c5fs_t *scratch;                   // whole-disk handle: synth writes + area_open
+	unsigned narea;
+	c5fs_t *area[WD_MAX_AREAS];        // one mounted crook5fs per CROOK-5 area
 };
 
 // Peek the CFA "directory copy" answer out of <dir>/.crookfs.ini. CFA's own
@@ -80,117 +88,116 @@ static bool dir_wants_variant_t(const char *dir_name)
 //   hash-overflow cascade (64/32/4) that CROOK validates on attach.
 // ---------------------------------------------------------------------------
 
-#define SYNTH_A1      9
-#define SYNTH_A2      109
-#define SYNTH_A3      117
-#define SYNTH_AK      29472
-#define SYNTH_NDIREC  117
-#define SYNTH_BOSS_CODE   (12 * 4)     // BOSS is the 2nd DICDIC entry (word 12)
-#define WINCH_QUANT   4912
+#define SYNTH_A1          9       // 9 DICDIC sectors (CFA pa1 = 3)
+#define SYNTH_FILDIC_PER_QUANT 20 // FILDIC sectors per 4912-sector quantum
+#define SYNTH_BOSS_CODE   (12 * 4)
+#define WINCH_QUANT       4912
 
-static void synth_dicdic_entry(c5fs_t *fs, unsigned woff, const uint16_t e[12])
+static void synth_dicdic_entry(c5fs_t *fs, unsigned base, unsigned woff, const uint16_t e[12])
 {
 	for (unsigned part = 0 ; part < 3 ; part++) {
-		uint8_t *sec = c5fs_lsec(fs, part);
+		uint8_t *sec = c5fs_lsec(fs, base + part);
 		for (unsigned k = 0 ; k < 4 ; k++) c5fs_wrw(sec, woff + k, e[part * 4 + k]);
 	}
 }
 
-static void synth_fildic_sys(c5fs_t *fs, unsigned rel, const char *name,
+static void synth_fildic_sys(struct c5_area *a, const char *name,
                              uint16_t ext_w, uint16_t w6,
                              uint16_t start, uint16_t end, uint16_t len)
 {
-	uint8_t *sec = c5fs_lsec(fs, SYNTH_A1 + rel);
-	uint16_t nm[2] = {0, 0};
-	c5fs_r40_pack(name, C5FS_MAX_NAME, nm);
 	uint16_t e[C5FS_FILDIC_ENTRY_WORDS] = {0};
-	e[0] = nm[0]; e[1] = nm[1];
+	c5fs_r40_pack(name, C5FS_MAX_NAME, e);
 	e[2] = SYNTH_BOSS_CODE;
 	e[3] = ext_w;
 	e[6] = w6;
 	e[7] = 4;
 	e[9] = start; e[10] = end; e[11] = len;
-	for (unsigned k = 0 ; k < C5FS_FILDIC_ENTRY_WORDS ; k++)
-		c5fs_wrw(sec, 0 * C5FS_FILDIC_ENTRY_WORDS + k, e[k]);
-	c5fs_wrw(sec, 1 * C5FS_FILDIC_ENTRY_WORDS, 1);
+	c5fs_fildic_insert(a, e);   // places it at its hash sector, spills on collision
 }
 
-static bool synth_data_area(winchester_dir_t *wd)
+// The FILDIC per-sector hash cascade: level sizes are the descending powers of
+// two that sum to `n` (100 -> 64+32+4, 20 -> 16+4, 7 -> 4+2+1); a sector in
+// level L links, cycling, into level L+1. CROOK validates this on attach.
+static void synth_cascade(c5fs_t *fs, unsigned base, unsigned A1, unsigned n)
 {
-	unsigned usable = wd->cyls * wd->heads * wd->spt - wd->spare;
-	if (usable <= SYNTH_AK) return false;
+	unsigned lvl[16], nlev = 0, rem = n;
+	while (rem && nlev < 16) { unsigned k = 1; while (k * 2 <= rem) k *= 2; lvl[nlev++] = k; rem -= k; }
+	unsigned lstart[17]; lstart[0] = 0;
+	for (unsigned i = 0 ; i < nlev ; i++) lstart[i + 1] = lstart[i] + lvl[i];
 
-	const uint16_t A1 = SYNTH_A1, A2 = SYNTH_A2, A3 = SYNTH_A3, AK = SYNTH_AK;
-	const bool t = wd->variant_t;
-	// N: reserved NDIREC region A3..A3+117. T: a CDIREC recovery copy of
-	// DICDIC+FILDIC+MAP (sectors 0..A3-1) takes that slot and NDIREC shifts
-	// up by 117, and LABEL word 4 carries the 0x8000 flag.
-	const unsigned struct_end = A3 + (t ? 2u : 1u) * SYNTH_NDIREC;
+	for (unsigned rel = 0 ; rel < n ; rel++) {
+		unsigned L = 0;
+		while (L + 1 < nlev && rel >= lstart[L + 1]) L++;
+		unsigned idx = rel - lstart[L];
+		unsigned link = (L + 1 < nlev) ? (A1 + lstart[L + 1] + (idx % lvl[L + 1])) : 0;
+		uint8_t *sec = c5fs_lsec(fs, base + A1 + rel);
+		c5fs_wrw(sec, 0, 1);   // end-of-dictionary marker in the first slot
+		c5fs_wrw(sec, 252, (uint16_t)((rel == n - 1) ? 0xffff : 0));
+		c5fs_wrw(sec, 253, (uint16_t) link);
+		c5fs_wrw(sec, 254, (uint16_t)(lvl[L] - 1));
+		c5fs_wrw(sec, 255, (uint16_t) idx);
+	}
+}
 
-	memset(wd->mem, 0, wd->size);
-	c5fs_t *fs = wd->fs;
+// Lay down one empty CROOK-5 data area (A0 = 0) of `quanta` quanta at logical
+// sector `base`, named `name3`. Matches what BOSS's `CFA ,<name>,0,3,<pa2>,<pa3>`
+// produces. Returns AK (the area's sector count) or 0 on failure.
+static unsigned synth_one_area(c5fs_t *fs, unsigned base, unsigned ssize,
+                               const char *name3, unsigned quanta, bool t)
+{
+	const unsigned AK = quanta * WINCH_QUANT;
+	const unsigned A1 = SYNTH_A1;
+	const unsigned A2 = A1 + SYNTH_FILDIC_PER_QUANT * quanta;
+	const unsigned mapsec = (AK + ssize * 8 - 1) / (ssize * 8);
+	const unsigned A3 = A2 + mapsec;
+	const unsigned ndirec_len = A3;                     // NDIREC / CDIREC region = |metadata|
+	const unsigned struct_end = A3 + (t ? 2u : 1u) * ndirec_len;
+	if (struct_end >= AK) return 0;
 
 	uint16_t ename[2] = {0, 0};
-	c5fs_r40_pack("DAT", 3, ename);
+	c5fs_r40_pack(name3, C5FS_MAX_NAME, ename);
 
-	uint16_t meta[8] = { ename[0], 0 /*A0*/, A1, A2,
-	                     (uint16_t)(t ? (A3 | 0x8000) : A3), AK, 0, 0 };
+	uint16_t meta[8] = { ename[0], 0, (uint16_t) A1, (uint16_t) A2,
+	                     (uint16_t)(t ? (A3 | 0x8000) : A3), (uint16_t) AK, 0, 0 };
 	for (unsigned s = 0 ; s < 3 ; s++) {
-		uint8_t *sec = c5fs_lsec(fs, s);
+		uint8_t *sec = c5fs_lsec(fs, base + s);
 		for (unsigned w = 0 ; w < 8 ; w++) c5fs_wrw(sec, w, meta[w]);
 	}
 
 	uint16_t librar[12] = {0}, boss[12] = {0};
 	c5fs_r40_pack("LIBRAR", 6, librar);
-	librar[3] = 1;
-	librar[5] = 0x7fff;
-	librar[7] = 0x7fff;
+	librar[3] = 1; librar[5] = 0x7fff; librar[7] = 0x7fff;
 	c5fs_r40_pack("BOSS", 6, boss);
-	boss[2] = C5FS_DICDIC_LIBRAR_CODE;
-	boss[5] = 0x7fff;
-	boss[6] = C5FS_DICDIC_LIBRAR_CODE;
-	boss[7] = 0x7fff;
-	synth_dicdic_entry(fs, C5FS_DICDIC_LIBRAR_WOFF, librar);
-	synth_dicdic_entry(fs, C5FS_DICDIC_LIBRAR_WOFF + 4, boss);
+	boss[2] = C5FS_DICDIC_LIBRAR_CODE; boss[5] = 0x7fff;
+	boss[6] = C5FS_DICDIC_LIBRAR_CODE; boss[7] = 0x7fff;
+	synth_dicdic_entry(fs, base, C5FS_DICDIC_LIBRAR_WOFF, librar);
+	synth_dicdic_entry(fs, base, C5FS_DICDIC_LIBRAR_WOFF + 4, boss);
 	{ uint16_t end[12] = { 1, 0,0,0,0,0,0,0,0,0,0,0 };
-	  synth_dicdic_entry(fs, C5FS_DICDIC_LIBRAR_WOFF + 8, end); }
+	  synth_dicdic_entry(fs, base, C5FS_DICDIC_LIBRAR_WOFF + 8, end); }
 
-	for (unsigned rel = 0 ; rel < (unsigned)(A2 - A1) ; rel++) {
-		uint8_t *sec = c5fs_lsec(fs, A1 + rel);
-		uint16_t link, mask, idx;
-		if (rel < 64)       { link = (uint16_t)(A1 + 64 + (rel % 32));      mask = 63; idx = (uint16_t)rel; }
-		else if (rel < 96)  { link = (uint16_t)(A1 + 96 + ((rel - 64) % 4)); mask = 31; idx = (uint16_t)(rel - 64); }
-		else                { link = 0;                                     mask = 3;  idx = (uint16_t)(rel - 96); }
-		c5fs_wrw(sec, 0, 1);
-		c5fs_wrw(sec, 252, (rel == (unsigned)(A2 - A1) - 1) ? 0xffff : 0);
-		c5fs_wrw(sec, 253, link);
-		c5fs_wrw(sec, 254, mask);
-		c5fs_wrw(sec, 255, idx);
-	}
-
-	const uint16_t ndirec = t ? (uint16_t)(A3 + SYNTH_NDIREC) : A3;
-
-	synth_fildic_sys(fs,  9, "MAP",    ename[0], 0x8000, A2, A3, (uint16_t)(A3 - A2));
-	synth_fildic_sys(fs, 10, "DICDIC", ename[0], 0x8000, 0,  A1, A1);
-	synth_fildic_sys(fs, 29, "GLOBAL", ename[0], 0x8000, 0,  AK, AK);
-	synth_fildic_sys(fs, 32, "FILDIC", ename[0], 0x8000, A1, A2, (uint16_t)(A2 - A1));
-	if (t)
-		synth_fildic_sys(fs, 56, "CDIREC", ename[0], 0xc000, A3, (uint16_t)(A3 + SYNTH_NDIREC), SYNTH_NDIREC);
-	synth_fildic_sys(fs, 61, "NDIREC", ename[0], 0xc000, ndirec, (uint16_t)(ndirec + SYNTH_NDIREC), SYNTH_NDIREC);
+	synth_cascade(fs, base, A1, A2 - A1);
 
 	struct c5_area a;
-	if (!c5fs_area_open(&a, fs, 0)) return false;
+	if (!c5fs_area_open(&a, fs, base)) return 0;
+
+	const unsigned ndirec = t ? A3 + ndirec_len : A3;
+	synth_fildic_sys(&a, "MAP",    ename[0], 0x8000, (uint16_t) A2, (uint16_t) A3, (uint16_t) mapsec);
+	synth_fildic_sys(&a, "DICDIC", ename[0], 0x8000, 0, (uint16_t) A1, (uint16_t) A1);
+	synth_fildic_sys(&a, "GLOBAL", ename[0], 0x8000, 0, (uint16_t) AK, (uint16_t) AK);
+	synth_fildic_sys(&a, "FILDIC", ename[0], 0x8000, (uint16_t) A1, (uint16_t) A2, (uint16_t)(A2 - A1));
+	if (t)
+		synth_fildic_sys(&a, "CDIREC", ename[0], 0xc000, (uint16_t) A3, (uint16_t)(A3 + ndirec_len), (uint16_t) ndirec_len);
+	synth_fildic_sys(&a, "NDIREC", ename[0], 0xc000, (uint16_t) ndirec, (uint16_t)(ndirec + ndirec_len), (uint16_t) ndirec_len);
+
 	for (unsigned s = 0 ; s < struct_end ; s++) c5fs_map_set(&a, s);
-	// MAP bits past the last real sector (AK) read as allocated, like CFA
-	for (unsigned s = AK ; s < (unsigned)(A3 - A2) * wd->ssize * 8 ; s++) c5fs_map_set(&a, s);
+	for (unsigned s = AK ; s < mapsec * ssize * 8 ; s++) c5fs_map_set(&a, s);
 
 	if (t)
-		// CDIREC.DAT = a copy of DICDIC + FILDIC + MAP (area sectors 0..A3-1)
-		memcpy(c5fs_lsec(fs, A3), c5fs_lsec(fs, 0), (size_t)A3 * wd->ssize);
+		memcpy(c5fs_lsec(fs, base + A3), c5fs_lsec(fs, base), (size_t) A3 * ssize);
 
-	LOG(L_WNCH, "winchester dir: synthesized empty CROOK-5 data area (A1=%u A2=%u A3=%u AK=%u)",
-		A1, A2, A3, AK);
-	return true;
+	LOG(L_WNCH, "winchester dir: synthesized area \"%s\" @ %u (A1=%u A2=%u A3=%u AK=%u, %s)",
+		name3, base, A1, A2, A3, AK, t ? "T" : "N");
+	return AK;
 }
 
 // pick which CROOK area to overlay into: the first quantum-aligned *data* area
@@ -201,7 +208,7 @@ static unsigned pick_overlay_area(winchester_dir_t *wd)
 	unsigned usable = wd->cyls * wd->heads * wd->spt - wd->spare;
 	for (unsigned start = 0 ; start + WINCH_QUANT <= usable ; start += WINCH_QUANT) {
 		struct c5_area a;
-		if (!c5fs_area_open(&a, wd->fs, start)) continue;
+		if (!c5fs_area_open(&a, wd->scratch, start)) continue;
 		if (a.A0 != 0) continue;
 		if (!c5fs_librar_present(&a)) continue;
 		if (start != 0)
@@ -209,6 +216,62 @@ static unsigned pick_overlay_area(winchester_dir_t *wd)
 		return start;
 	}
 	return 0;
+}
+
+// One synthesised area: its 3-char CROOK name and the host directory feeding it.
+struct wd_area_spec {
+	char name[4];
+	char path[1536];
+};
+
+// A host subdir name -> a 3-char R40 CROOK area name (upper, [A-Z0-9_%#] only).
+static void area_name_from(const char *sub, char out[4])
+{
+	unsigned o = 0;
+	for (const char *p = sub ; *p && o < 3 ; p++) {
+		int c = toupper((unsigned char) *p);
+		if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '%' || c == '#')
+			out[o++] = (char) c;
+	}
+	if (o == 0) out[o++] = 'X';
+	out[o] = 0;
+}
+
+// Enumerate the areas a synth mount produces: root files -> "DAT", each
+// immediate subdirectory -> its own area. Returns the count (>=1).
+static unsigned wd_collect_areas(const char *root, struct wd_area_spec *out, unsigned max)
+{
+	unsigned n = 0;
+	bool root_files = false;
+	DIR *d = opendir(root);
+	if (d) {
+		struct dirent *de;
+		while ((de = readdir(d)) && n < max) {
+			if (de->d_name[0] == '.') continue;
+			char p[1536];
+			snprintf(p, sizeof(p), "%s/%s", root, de->d_name);
+			struct stat st;
+			if (stat(p, &st)) continue;
+			if (S_ISDIR(st.st_mode)) {
+				area_name_from(de->d_name, out[n].name);
+				snprintf(out[n].path, sizeof(out[n].path), "%s", p);
+				n++;
+			} else if (S_ISREG(st.st_mode)) {
+				root_files = true;
+			}
+		}
+		closedir(d);
+	}
+	if (root_files || n == 0) {
+		// shift subdir areas up, put the root area first
+		if (n < max) {
+			for (unsigned i = n ; i > 0 ; i--) out[i] = out[i - 1];
+			memcpy(out[0].name, "DAT", 4);
+			snprintf(out[0].path, sizeof(out[0].path), "%s", root);
+			n++;
+		}
+	}
+	return n;
 }
 
 // ---------------------------------------------------------------------------
@@ -245,8 +308,8 @@ winchester_dir_t * winchester_dir_create(const char *image_name, const char *dir
 		return NULL;
 	}
 
-	wd->fs = c5fs_create(wd->mem, wd->size, wd->spare, L_WNCH);
-	if (!wd->fs) { winchester_dir_destroy(wd); return NULL; }
+	wd->scratch = c5fs_create(wd->mem, wd->size, wd->spare, L_WNCH);
+	if (!wd->scratch) { winchester_dir_destroy(wd); return NULL; }
 
 	if (image_name && *image_name) {
 		FILE *f = fopen(image_name, "rb");
@@ -271,16 +334,41 @@ winchester_dir_t * winchester_dir_create(const char *image_name, const char *dir
 		}
 		fclose(f);
 		LOG(L_WNCH, "Directory-backed winchester: base image \"%s\" (%li bytes) loaded into RAM", image_name, wd->size);
-	} else {
-		if (!synth_data_area(wd)) {
-			LOGERR("Failed to synthesize the data-only winchester area.");
-			winchester_dir_destroy(wd);
-			return NULL;
-		}
-	}
 
-	if (dir_name && *dir_name)
-		c5fs_mount_dir(wd->fs, dir_name, pick_overlay_area(wd), FSMETA_SIDECAR);
+		// overlay: one area, chosen from the existing image
+		if (dir_name && *dir_name) {
+			wd->area[0] = c5fs_create(wd->mem, wd->size, wd->spare, L_WNCH);
+			if (wd->area[0]) {
+				c5fs_mount_dir(wd->area[0], dir_name, pick_overlay_area(wd), FSMETA_SIDECAR);
+				wd->narea = 1;
+			}
+		}
+	} else {
+		// synth: root files -> "DAT", each subdir -> its own area, quanta split evenly
+		struct wd_area_spec spec[WD_MAX_AREAS];
+		unsigned n = dir_name && *dir_name ? wd_collect_areas(dir_name, spec, WD_MAX_AREAS) : 0;
+		if (n == 0) { memcpy(spec[0].name, "DAT", 4); spec[0].path[0] = 0; n = 1; }
+
+		memset(wd->mem, 0, wd->size);
+		unsigned usable = cyls * heads * spt - wd->spare;
+		unsigned total_q = usable / WINCH_QUANT;
+		unsigned per_q = total_q / n;
+		if (per_q == 0) { LOGERR("winchester dir: %u areas do not fit in %u quanta.", n, total_q); winchester_dir_destroy(wd); return NULL; }
+
+		unsigned base = 0;
+		for (unsigned i = 0 ; i < n ; i++) {
+			if (!synth_one_area(wd->scratch, base, wd->ssize, spec[i].name, per_q, wd->variant_t)) {
+				LOGERR("winchester dir: failed to synthesize area \"%s\".", spec[i].name);
+				winchester_dir_destroy(wd);
+				return NULL;
+			}
+			wd->area[i] = c5fs_create(wd->mem, wd->size, wd->spare, L_WNCH);
+			if (wd->area[i] && spec[i].path[0])
+				c5fs_mount_dir(wd->area[i], spec[i].path, base, FSMETA_SIDECAR);
+			base += per_q * WINCH_QUANT;
+		}
+		wd->narea = n;
+	}
 
 	const char *dump = getenv("WINCH_DIR_DUMP");
 	if (dump && *dump) {
@@ -295,8 +383,12 @@ winchester_dir_t * winchester_dir_create(const char *image_name, const char *dir
 void winchester_dir_destroy(winchester_dir_t *wd)
 {
 	if (!wd) return;
-	c5fs_flush(wd->fs);
-	c5fs_destroy(wd->fs);
+	for (unsigned i = 0 ; i < wd->narea ; i++) {
+		if (!wd->area[i]) continue;
+		c5fs_flush(wd->area[i]);
+		c5fs_destroy(wd->area[i]);
+	}
+	if (wd->scratch) c5fs_destroy(wd->scratch);
 	free(wd->mem);
 	free(wd);
 }
@@ -306,7 +398,8 @@ int winchester_dir_sector_rd(winchester_dir_t *wd, uint8_t *buf, unsigned c, uns
 {
 	long off = wd_offset(wd, c, h, s);
 	if (off < 0) return DEV_STATUS_SEEKERR;
-	c5fs_on_read(wd->fs);
+	for (unsigned i = 0 ; i < wd->narea ; i++)
+		if (wd->area[i]) c5fs_on_read(wd->area[i]);
 	memcpy(buf, wd->mem + off, wd->ssize);
 	return DEV_STATUS_OK;
 }
@@ -317,7 +410,8 @@ int winchester_dir_sector_wr(winchester_dir_t *wd, uint8_t *buf, unsigned c, uns
 	long off = wd_offset(wd, c, h, s);
 	if (off < 0) return DEV_STATUS_SEEKERR;
 	memcpy(wd->mem + off, buf, wd->ssize);
-	c5fs_on_write(wd->fs);
+	for (unsigned i = 0 ; i < wd->narea ; i++)
+		if (wd->area[i]) c5fs_on_write(wd->area[i]);
 	return DEV_STATUS_OK;
 }
 
