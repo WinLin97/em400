@@ -53,6 +53,9 @@ void fsmeta_free(fsmeta_t *m);
 // Per-file attribute access. `file` is the host basename, `key` a short token.
 bool fsmeta_get_u(fsmeta_t *m, const char *file, const char *key, unsigned long *out);
 void fsmeta_set_u(fsmeta_t *m, const char *file, const char *key, unsigned long val);
+// String-valued attributes (e.g. a human-readable "access = rw,rw,rw").
+const char * fsmeta_get_s(fsmeta_t *m, const char *file, const char *key);
+void fsmeta_set_s(fsmeta_t *m, const char *file, const char *key, const char *val);
 
 // Forget every attribute of one file (e.g. it was deleted).
 void fsmeta_forget(fsmeta_t *m, const char *file);

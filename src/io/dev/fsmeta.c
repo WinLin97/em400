@@ -202,6 +202,20 @@ void fsmeta_set_u(fsmeta_t *m, const char *file, const char *key, unsigned long 
 }
 
 // -----------------------------------------------------------------------
+const char * fsmeta_get_s(fsmeta_t *m, const char *file, const char *key)
+{
+	if (!m) return NULL;
+	struct ent *e = find(m, file, key);
+	return e ? e->val : NULL;
+}
+
+// -----------------------------------------------------------------------
+void fsmeta_set_s(fsmeta_t *m, const char *file, const char *key, const char *val)
+{
+	if (m && val) set_raw(m, file, key, val);
+}
+
+// -----------------------------------------------------------------------
 void fsmeta_forget(fsmeta_t *m, const char *file)
 {
 	if (!m) return;

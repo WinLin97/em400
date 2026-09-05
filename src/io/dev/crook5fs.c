@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <ctype.h>
 #include <time.h>
 #include <stdatomic.h>
@@ -429,21 +430,107 @@ static uint32_t image_data_crc(struct c5_area *a, unsigned start, unsigned nsec)
 	return crc32(area_sec(a, start), (size_t)nsec * SSIZE);
 }
 
+// FILDIC word 6 access field (MERA bit numbering N0=MSB): N0-5 hold the
+// access category, N6-11 attributes, N12-15 the MEM block size. The
+// category is 6 independent bits [owner-r owner-w lower-r lower-w all-r
+// all-w]; CROOK's `SET` command names the common combinations. We store
+// it human-readably in ".crookfs.ini" as one of those names, defaulting
+// to "AW" - everyone read+write, right for a shared exchange disk.
+#define C5_ACCESS_MASK    0xfc00u
+#define C5_ACCESS_DEFAULT 0xfc00u  // AW / octal 077
+
+static const struct { const char *name; uint16_t bits; } c5_access_names[] = {
+	{ "OR", 0x8000 },  // owner: read                    (SET octal 040)
+	{ "OW", 0xc000 },  // owner: read+write              (060)
+	{ "LR", 0xa000 },  // + subordinate users: read      (050)
+	{ "LW", 0xf000 },  // + subordinate users: read+write(074)
+	{ "AR", 0xa800 },  // + all users: read              (052)
+	{ "AW", 0xfc00 },  // all users: read+write          (077)
+};
+
+static const struct { const char *name; uint16_t code; } c5_user_names[] = {
+	{ "LIBRAR", C5FS_DICDIC_LIBRAR_WOFF * 4 },        // DICDIC woff 8  -> code 32
+	{ "BOSS",   (C5FS_DICDIC_LIBRAR_WOFF + 4) * 4 },  // DICDIC woff 12 -> code 48
+};
+
+static uint16_t access_parse(const char *s)
+{
+	if (!s || !*s) return C5_ACCESS_DEFAULT;
+	for (unsigned i = 0 ; i < sizeof(c5_access_names)/sizeof(c5_access_names[0]) ; i++)
+		if (!strcasecmp(s, c5_access_names[i].name)) return c5_access_names[i].bits;
+	// free-form "owner,lower,all" each "-", "r", "rw"/"rw-"
+	unsigned lvl = 0, b[3] = {0, 0, 0};
+	for (const char *p = s ; *p && lvl < 3 ; p++) {
+		if (*p == ',' || *p == '/') { lvl++; continue; }
+		if (*p == 'r' || *p == 'R') b[lvl] |= 1;
+		else if (*p == 'w' || *p == 'W') b[lvl] |= 2;
+	}
+	static const uint8_t rbit[3] = {15, 13, 11};
+	uint16_t w = 0;
+	for (unsigned i = 0 ; i < 3 ; i++) {
+		if (b[i] & 1) w |= 1u << rbit[i];
+		if (b[i] & 2) w |= 1u << (rbit[i] - 1);
+	}
+	return w ? w : C5_ACCESS_DEFAULT;
+}
+
+static const char * access_fmt(uint16_t w6)
+{
+	uint16_t a = w6 & C5_ACCESS_MASK;
+	for (unsigned i = 0 ; i < sizeof(c5_access_names)/sizeof(c5_access_names[0]) ; i++)
+		if (a == c5_access_names[i].bits) return c5_access_names[i].name;
+	static char buf[12];
+	snprintf(buf, sizeof(buf), "%s%s,%s%s,%s%s",
+		(a & (1u<<15)) ? "r" : "-", (a & (1u<<14)) ? "w" : "-",
+		(a & (1u<<13)) ? "r" : "-", (a & (1u<<12)) ? "w" : "-",
+		(a & (1u<<11)) ? "r" : "-", (a & (1u<<10)) ? "w" : "-");
+	return buf;
+}
+
+static bool user_parse(const char *s, uint16_t *out)
+{
+	if (!s || !*s) return false;
+	for (unsigned i = 0 ; i < sizeof(c5_user_names)/sizeof(c5_user_names[0]) ; i++)
+		if (!strcasecmp(s, c5_user_names[i].name)) { *out = c5_user_names[i].code; return true; }
+	char *end = NULL;
+	unsigned long v = strtoul(s, &end, 0);
+	if (end == s) return false;
+	*out = (uint16_t) v;
+	return true;
+}
+
+static const char * user_fmt(uint16_t code)
+{
+	for (unsigned i = 0 ; i < sizeof(c5_user_names)/sizeof(c5_user_names[0]) ; i++)
+		if (code == c5_user_names[i].code) return c5_user_names[i].name;
+	static char buf[8];
+	snprintf(buf, sizeof(buf), "%u", code);
+	return buf;
+}
+
 static void meta_capture(c5fs_t *fs, const char *hostname, const uint16_t *ent)
 {
 	if (!fs->meta) return;
-	fsmeta_set_u(fs->meta, hostname, "owner",  ent[2]);
-	fsmeta_set_u(fs->meta, hostname, "param2", ent[5]);
-	fsmeta_set_u(fs->meta, hostname, "rights", ent[6]);
-	fsmeta_set_u(fs->meta, hostname, "word7",  ent[7]);
+	fsmeta_set_s(fs->meta, hostname, "owner",  user_fmt(ent[7]));
+	fsmeta_set_s(fs->meta, hostname, "access", access_fmt(ent[6]));
+	// attributes / MEM bits are rarely set; keep the raw word only when they are
+	if (ent[6] & ~C5_ACCESS_MASK) fsmeta_set_u(fs->meta, hostname, "rights", ent[6]);
+	if (ent[5])                   fsmeta_set_u(fs->meta, hostname, "param2", ent[5]);
 }
 
 static void meta_apply(c5fs_t *fs, const char *hostname, uint16_t *ent)
 {
 	unsigned long v;
-	if (fsmeta_get_u(fs->meta, hostname, "owner",  &v)) { ent[2] = (uint16_t) v; ent[7] = (uint16_t) v; }
+	uint16_t u;
+	if (user_parse(fsmeta_get_s(fs->meta, hostname, "owner"), &u)) { ent[2] = u; ent[7] = u; }
 	if (fsmeta_get_u(fs->meta, hostname, "param2", &v)) ent[5] = (uint16_t) v;
-	if (fsmeta_get_u(fs->meta, hostname, "rights", &v)) ent[6] = (uint16_t) v;
+	// "rights" (raw word 6) wins if given; else "access" name/triad; else default
+	if (fsmeta_get_u(fs->meta, hostname, "rights", &v)) {
+		ent[6] = (uint16_t) v;
+	} else {
+		const char *acc = fsmeta_get_s(fs->meta, hostname, "access");
+		ent[6] = (ent[6] & ~C5_ACCESS_MASK) | access_parse(acc);
+	}
 	if (fsmeta_get_u(fs->meta, hostname, "word7",  &v)) ent[7] = (uint16_t) v;
 }
 
@@ -486,8 +573,12 @@ static bool overlay_file(struct c5_area *a, const char *host_path, const char *f
 	}
 	for (unsigned i = 0 ; i < nsec ; i++) map_set(a, (unsigned)start + i);
 
-	uint16_t p2 = 0, w6 = 0xa800;
+	uint16_t p2 = 0, w6 = C5_ACCESS_DEFAULT;
 	fildic_clone_template(a, ew, &p2, &w6);
+	// take only the attribute / MEM bits from a same-ext template; the
+	// access category is our own policy (default AW, or the .crookfs.ini
+	// "access =" line), applied below by meta_apply().
+	w6 = C5_ACCESS_DEFAULT | (w6 & ~C5_ACCESS_MASK);
 
 	uint16_t ent[FILDIC_ENTRY_WORDS] = {0};
 	ent[0] = nw[0]; ent[1] = nw[1];
