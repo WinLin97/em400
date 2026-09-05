@@ -258,22 +258,22 @@ static long blk_offset(const sp45de_crkdir_t *sd, unsigned track, unsigned secto
 	return ((long)track * sd->spt + (sector - 1)) * sd->blk;
 }
 
-int sp45de_crkdir_blk_rd(sp45de_crkdir_t *sd, unsigned track, unsigned sector, uint8_t *buf)
+enum sp45de_result sp45de_crkdir_blk_rd(sp45de_crkdir_t *sd, unsigned track, unsigned sector, uint8_t *buf)
 {
 	long off = blk_offset(sd, track, sector);
-	if (off < 0) return -1;
+	if (off < 0) return SP45DE_R_NO_SECTOR;
 	c5fs_on_read(sd->fs);
 	memcpy(buf, sd->mem + off, sd->blk);
-	return 0;
+	return SP45DE_R_OK;
 }
 
-int sp45de_crkdir_blk_wr(sp45de_crkdir_t *sd, unsigned track, unsigned sector, const uint8_t *buf)
+enum sp45de_result sp45de_crkdir_blk_wr(sp45de_crkdir_t *sd, unsigned track, unsigned sector, const uint8_t *buf)
 {
 	long off = blk_offset(sd, track, sector);
-	if (off < 0) return -1;
+	if (off < 0) return SP45DE_R_NO_SECTOR;
 	memcpy(sd->mem + off, buf, sd->blk);
 	c5fs_on_write(sd->fs);
-	return 0;
+	return SP45DE_R_OK;
 }
 
 // vim: tabstop=4 shiftwidth=4 autoindent

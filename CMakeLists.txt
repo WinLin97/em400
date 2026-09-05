@@ -136,6 +136,7 @@ set(SOURCES_EM400
 	src/io/dev/terminal.h
 	src/io/dev/sp45de.c
 	src/io/dev/sp45de.h
+	src/io/dev/sp45de_geom.h
 	src/io/dev/sp45de_dir.c
 	src/io/dev/sp45de_dir.h
 	src/io/dev/sp45de_crkdir.c

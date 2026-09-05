@@ -455,22 +455,22 @@ void sp45de_dir_destroy(sp45de_dir_t *sd)
 	free(sd);
 }
 
-int sp45de_dir_blk_rd(sp45de_dir_t *sd, unsigned track, unsigned sector, uint8_t *buf)
+enum sp45de_result sp45de_dir_blk_rd(sp45de_dir_t *sd, unsigned track, unsigned sector, uint8_t *buf)
 {
 	uint8_t *b = blk(sd, track, sector);
-	if (!b) return -1;
+	if (!b) return SP45DE_R_NO_SECTOR;
 	maybe_sync(sd);
 	memcpy(buf, b, sd->blk);
-	return 0;
+	return SP45DE_R_OK;
 }
 
-int sp45de_dir_blk_wr(sp45de_dir_t *sd, unsigned track, unsigned sector, const uint8_t *buf)
+enum sp45de_result sp45de_dir_blk_wr(sp45de_dir_t *sd, unsigned track, unsigned sector, const uint8_t *buf)
 {
 	uint8_t *b = blk(sd, track, sector);
-	if (!b) return -1;
+	if (!b) return SP45DE_R_NO_SECTOR;
 	memcpy(b, buf, sd->blk);
 	if (sd->sync) { sd->guest_dirty = true; sd->last_write = now_secs(); }
-	return 0;
+	return SP45DE_R_OK;
 }
 
 // vim: tabstop=4 shiftwidth=4 autoindent

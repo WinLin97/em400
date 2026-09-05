@@ -33,6 +33,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "io/dev/sp45de_geom.h"
+
 typedef struct sp45de_dir sp45de_dir_t;
 
 sp45de_dir_t * sp45de_dir_create(const char *dir_name, unsigned tracks,
@@ -40,8 +42,8 @@ sp45de_dir_t * sp45de_dir_create(const char *dir_name, unsigned tracks,
 void sp45de_dir_destroy(sp45de_dir_t *sd);
 
 // track 0..tracks-1, sector 1..spt ; buf is blk_size bytes. Returns 0 on ok.
-int sp45de_dir_blk_rd(sp45de_dir_t *sd, unsigned track, unsigned sector, uint8_t *buf);
-int sp45de_dir_blk_wr(sp45de_dir_t *sd, unsigned track, unsigned sector, const uint8_t *buf);
+enum sp45de_result sp45de_dir_blk_rd(sp45de_dir_t *sd, unsigned track, unsigned sector, uint8_t *buf);
+enum sp45de_result sp45de_dir_blk_wr(sp45de_dir_t *sd, unsigned track, unsigned sector, const uint8_t *buf);
 
 #endif
 

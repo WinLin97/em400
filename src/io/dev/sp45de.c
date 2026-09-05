@@ -102,7 +102,7 @@ static int sp45de_image_seek(FILE *img_file, unsigned track, unsigned sector)
 }
 
 // -----------------------------------------------------------------------
-int sp45de_blk_read(sp45de_t *sp45de, unsigned slot, unsigned track, unsigned sector)
+enum sp45de_result sp45de_blk_read(sp45de_t *sp45de, unsigned slot, unsigned track, unsigned sector)
 {
 	sp45de->buf_pos = 0;
 
@@ -111,15 +111,15 @@ int sp45de_blk_read(sp45de_t *sp45de, unsigned slot, unsigned track, unsigned se
 		return SP45DE_R_NO_SECTOR;
 	}
 
-	int ret = SP45DE_R_FAULT;
+	enum sp45de_result ret = SP45DE_R_FAULT;
 
 	pthread_mutex_lock(&sp45de->media_mutex);
 	if (sp45de->crkdir[slot]) {
-		ret = (sp45de_crkdir_blk_rd(sp45de->crkdir[slot], track, sector, sp45de->buf) == 0) ? SP45DE_R_OK : SP45DE_R_FAULT;
+		ret = sp45de_crkdir_blk_rd(sp45de->crkdir[slot], track, sector, sp45de->buf);
 		goto fin;
 	}
 	if (sp45de->dir[slot]) {
-		ret = (sp45de_dir_blk_rd(sp45de->dir[slot], track, sector, sp45de->buf) == 0) ? SP45DE_R_OK : SP45DE_R_FAULT;
+		ret = sp45de_dir_blk_rd(sp45de->dir[slot], track, sector, sp45de->buf);
 		goto fin;
 	}
 	if (!sp45de->image[slot]) {
@@ -152,7 +152,7 @@ fin:
 }
 
 // -----------------------------------------------------------------------
-int sp45de_blk_write(sp45de_t *sp45de, unsigned slot, unsigned track, unsigned sector)
+enum sp45de_result sp45de_blk_write(sp45de_t *sp45de, unsigned slot, unsigned track, unsigned sector)
 {
 	sp45de->buf_pos = 0;
 
@@ -161,15 +161,15 @@ int sp45de_blk_write(sp45de_t *sp45de, unsigned slot, unsigned track, unsigned s
 		return SP45DE_R_NO_SECTOR;
 	}
 
-	int ret = SP45DE_R_FAULT;
+	enum sp45de_result ret = SP45DE_R_FAULT;
 
 	pthread_mutex_lock(&sp45de->media_mutex);
 	if (sp45de->crkdir[slot]) {
-		ret = (sp45de_crkdir_blk_wr(sp45de->crkdir[slot], track, sector, sp45de->buf) == 0) ? SP45DE_R_OK : SP45DE_R_FAULT;
+		ret = sp45de_crkdir_blk_wr(sp45de->crkdir[slot], track, sector, sp45de->buf);
 		goto fin;
 	}
 	if (sp45de->dir[slot]) {
-		ret = (sp45de_dir_blk_wr(sp45de->dir[slot], track, sector, sp45de->buf) == 0) ? SP45DE_R_OK : SP45DE_R_FAULT;
+		ret = sp45de_dir_blk_wr(sp45de->dir[slot], track, sector, sp45de->buf);
 		goto fin;
 	}
 	if (!sp45de->image[slot]) {

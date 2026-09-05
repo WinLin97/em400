@@ -31,6 +31,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "io/dev/sp45de_geom.h"
+
 typedef struct sp45de_crkdir sp45de_crkdir_t;
 
 // CFA can format a FLOP8 area two ways. The "N" (normal) variant writes only the
@@ -50,8 +52,8 @@ sp45de_crkdir_t * sp45de_crkdir_create(const char *dir_name, unsigned tracks,
 void sp45de_crkdir_destroy(sp45de_crkdir_t *sd);
 
 // track 0..tracks-1, sector 1..spt ; buf is blk_size (128) bytes. 0 on ok.
-int sp45de_crkdir_blk_rd(sp45de_crkdir_t *sd, unsigned track, unsigned sector, uint8_t *buf);
-int sp45de_crkdir_blk_wr(sp45de_crkdir_t *sd, unsigned track, unsigned sector, const uint8_t *buf);
+enum sp45de_result sp45de_crkdir_blk_rd(sp45de_crkdir_t *sd, unsigned track, unsigned sector, uint8_t *buf);
+enum sp45de_result sp45de_crkdir_blk_wr(sp45de_crkdir_t *sd, unsigned track, unsigned sector, const uint8_t *buf);
 
 #endif
 
