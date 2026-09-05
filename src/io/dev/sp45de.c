@@ -315,8 +315,9 @@ static int sp45de_image_replace(em400_dev_t *dev, unsigned slot, const char *ima
 		bool as_crookfs = (stat(sidecar, &pst) == 0);
 
 		if (as_crookfs) {
-			// ".crookfs.ini" may carry a "variant = T" / "variant = N" line
-			// (anywhere, outside a [file] section) to pick the CFA format flavour.
+			// ".crookfs.ini" may carry a "directory_copy = T|N" line
+			// (anywhere, outside a [file] section) - CFA's own prompt, it
+			// picks the CDIREC recovery-copy format flavour.
 			enum sp45de_crk_variant variant = SP45DE_CRK_VARIANT_N;
 			FILE *sc = fopen(sidecar, "r");
 			if (sc) {
@@ -325,11 +326,11 @@ static int sp45de_image_replace(em400_dev_t *dev, unsigned slot, const char *ima
 					char *p = line;
 					while (*p == ' ' || *p == '\t') p++;
 					if (*p == '[') continue;
-					if (strncasecmp(p, "variant", 7)) continue;
+					if (strncasecmp(p, "directory_copy", 14)) continue;
 					p = strchr(p, '=');
 					if (!p) continue;
 					do { p++; } while (*p == ' ' || *p == '\t');
-					if (*p == 'T' || *p == 't') variant = SP45DE_CRK_VARIANT_T;
+					if (*p == 'T' || *p == 't' || *p == 'Y' || *p == 'y') variant = SP45DE_CRK_VARIANT_T;
 					break;
 				}
 				fclose(sc);

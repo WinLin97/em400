@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 
 #include "log.h"
 #include "io/dev/dev.h"
@@ -40,8 +41,10 @@ struct winchester_dir {
 	c5fs_t *fs;
 };
 
-// Peek "variant = T|N" out of <dir>/.crookfs.ini (the same knob sp45de_crkdir
-// reads). Any line, outside a [file] section; default N.
+// Peek the CFA "directory copy" answer out of <dir>/.crookfs.ini. CFA's own
+// prompt is "create a file for the current copy of the directories (T|N)?";
+// key `directory_copy`, value T/N (or Y/N), any line outside
+// a [file] section. Default N.
 static bool dir_wants_variant_t(const char *dir_name)
 {
 	if (!dir_name || !*dir_name) return false;
@@ -55,11 +58,11 @@ static bool dir_wants_variant_t(const char *dir_name)
 		char *p = line;
 		while (*p == ' ' || *p == '\t') p++;
 		if (*p == '[') continue;
-		if (strncasecmp(p, "variant", 7)) continue;
+		if (strncasecmp(p, "directory_copy", 14)) continue;
 		p = strchr(p, '=');
 		if (!p) continue;
 		do { p++; } while (*p == ' ' || *p == '\t');
-		t = (*p == 'T' || *p == 't');
+		t = (*p == 'T' || *p == 't' || *p == 'Y' || *p == 'y');
 		break;
 	}
 	fclose(f);
