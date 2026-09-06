@@ -67,6 +67,14 @@ enum uzfx_ou_commands {
 
 #define UZFX_CMD_QUIT -1
 
+// Delay between the CPU issuing a transfer command and the state machine
+// (with its completion interrupt) running. Stands in for the SP45DE's
+// motor/head/rotation latency. Only needs to exceed the handful of guest
+// instructions between the OU and the HLT that waits on its interrupt; a
+// real average access is ~205 ms (MDE-400 DTR), but that would make CFA
+// take many minutes in the emulator, so a small fixed value is used.
+#define UZFX_OP_DELAY_MS 2
+
 #define UZFX_INT_NONE 0
 enum uzfx_interrupt_priorities {
 	UZFX_INT_SECT_NOT_FOUND, // highest prio
@@ -122,6 +130,18 @@ struct uzfx {
 	// chains through any further non-wait states) as a plain callback on
 	// the same loop - no second thread, no lost-wakeup surface at all.
 	uv_async_t async_process;
+	// The disk-level state machine's completion interrupts must not reach the
+	// CPU in the same instant the CPU issued the command that started the
+	// operation. A real SP45DE has mechanical latency (motor spin-up, head
+	// step, rotation) between accepting a PISZ/CZYTAJ and signalling "ready";
+	// CROOK's drivers rely on it - they issue the OU, then run a few
+	// instructions of bookkeeping and HLT to wait for the interrupt. With
+	// zero latency em400 can raise *and serve* that interrupt before the HLT
+	// executes, so the HLT then waits forever (cpu.c only papers over the
+	// immediately-adjacent OU+HLT case). async_process therefore doesn't
+	// process inline: it arms this timer, and the state machine (and its
+	// interrupts) runs UZFX_OP_DELAY_MS later, on the timer callback.
+	uv_timer_t timer_process;
 	int open_handles;
 
 	// state_mutex still guards every field below: cmd_* functions run on
@@ -220,6 +240,17 @@ cchar_unit_t * uzfx_create(int dev_num, em400_dev_t *dev)
 	uv_handle_set_data((uv_handle_t *) &uzfx->async_process, uzfx);
 	uzfx->open_handles++;
 
+	res = uv_timer_init(ioloop, &uzfx->timer_process);
+	if (res) {
+		LOGERR("Device %i: UZFX process timer init error: %s", dev_num, uv_strerror(res));
+		uv_close((uv_handle_t *) &uzfx->async_process, NULL);
+		pthread_mutex_destroy(&uzfx->state_mutex);
+		free(uzfx);
+		return NULL;
+	}
+	uv_handle_set_data((uv_handle_t *) &uzfx->timer_process, uzfx);
+	uzfx->open_handles++;
+
 	uzfx_reset_state(uzfx);
 
 	return (cchar_unit_t *) uzfx;
@@ -245,6 +276,9 @@ void uzfx_shutdown(cchar_unit_t *unit)
 
 	if (!uv_is_closing((uv_handle_t *) &uzfx->async_process)) {
 		uv_close((uv_handle_t *) &uzfx->async_process, uzfx_on_handle_close);
+	}
+	if (!uv_is_closing((uv_handle_t *) &uzfx->timer_process)) {
+		uv_close((uv_handle_t *) &uzfx->timer_process, uzfx_on_handle_close);
 	}
 }
 
@@ -300,7 +334,7 @@ static int uzfx_int_for_result(int result)
 // another) until a wait state is reached. Invoked once up front after a
 // cmd_* function moves the state machine forward, and re-invoked via
 // uv_async_send() whenever that happens again.
-static void uzfx_on_async_process(uv_async_t *handle)
+static void uzfx_process_states(uv_timer_t *handle)
 {
 	uzfx_t *uzfx = (uzfx_t *) handle->data;
 
@@ -382,6 +416,22 @@ static void uzfx_on_async_process(uv_async_t *handle)
 		}
 	}
 	pthread_mutex_unlock(&uzfx->state_mutex);
+}
+
+// -----------------------------------------------------------------------
+// Woken (thread-safely) from the CPU-thread cmd_* functions when they move
+// the state machine into a state that needs disk-level processing. Runs on
+// the ioloop thread, so it can safely arm the process timer - the actual
+// processing (and its completion interrupt) happens UZFX_OP_DELAY_MS later.
+// If the timer is already pending, an operation is already in flight and
+// this wake is for a follow-up command (e.g. a pipelined PISZ); leave the
+// running delay alone rather than restarting it.
+static void uzfx_on_async_process(uv_async_t *handle)
+{
+	uzfx_t *uzfx = (uzfx_t *) handle->data;
+	if (!uv_is_active((uv_handle_t *) &uzfx->timer_process)) {
+		uv_timer_start(&uzfx->timer_process, uzfx_process_states, UZFX_OP_DELAY_MS, 0);
+	}
 }
 
 // -----------------------------------------------------------------------
@@ -519,8 +569,13 @@ static int uzfx_cmd_control(cchar_unit_t *unit, const uint16_t *r_arg, int cmd)
 	uzfx_t *uzfx = (uzfx_t *) unit;
 	int io_ret;
 
+	static const char *ctl_names[] = {
+		[UZFX_CMD_CTL_W & 7] = "write", [UZFX_CMD_CTL_WC & 7] = "write+check",
+		[UZFX_CMD_CTL_B & 7] = "bad-sector", [UZFX_CMD_CTL_R & 7] = "read",
+	};
 	pthread_mutex_lock(&uzfx->state_mutex);
-	LOG(L_UZFX, "command: control (state: %s)", uzfx_state_names[uzfx->state]);
+	LOG(L_UZFX, "command: control 0x%02x (%s) arg 0x%04x (state: %s)",
+		cmd, ctl_names[cmd & 7] ? ctl_names[cmd & 7] : "?", *r_arg, uzfx_state_names[uzfx->state]);
 	switch (uzfx->state) {
 		case UZFX_ST0_IDLE:
 			uzfx->operation = cmd;
