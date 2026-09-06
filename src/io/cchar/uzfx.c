@@ -73,7 +73,8 @@ enum uzfx_ou_commands {
 // instructions between the OU and the HLT that waits on its interrupt; a
 // real average access is ~205 ms (MDE-400 DTR), but that would make CFA
 // take many minutes in the emulator, so a small fixed value is used.
-#define UZFX_OP_DELAY_MS 2
+// CROOK's LIF needs some more time than 2ms - increase to 5 ms makes it happy.
+#define UZFX_OP_DELAY_MS 5
 
 #define UZFX_INT_NONE 0
 enum uzfx_interrupt_priorities {
