@@ -52,6 +52,7 @@ struct tracked {
 	long host_size;
 	long host_mtime;
 	uint32_t crc;
+	bool text_crlf;            // host file is text; LF<->CRLF translated on the way in/out
 };
 
 struct c5fs {
@@ -523,6 +524,45 @@ static void meta_apply(c5fs_t *fs, const char *hostname, uint16_t *ent)
 	if (fsmeta_get_u(fs->meta, hostname, "word7",  &v)) ent[7] = (uint16_t) v;
 }
 
+// Slurp a host file. CROOK-5 sequential text files use CR+LF line ends (the
+// character I/O layer terminates records on CR, code 13); a bare-LF host file
+// makes LIST read past the end of every line. So when the file looks like text
+// (no NUL bytes, no CR already present) translate every LF to CR+LF here, and
+// reverse it on write-back. `*is_text` reports whether that happened. Caller
+// frees `*out`.
+static bool load_host_file(const char *path, long host_size,
+                           uint8_t **out, size_t *out_len, bool *is_text)
+{
+	*out = NULL; *out_len = 0; *is_text = false;
+	FILE *f = fopen(path, "rb");
+	if (!f) return false;
+
+	uint8_t *raw = malloc((size_t)host_size ? (size_t)host_size : 1);
+	if (!raw) { fclose(f); return false; }
+	size_t got = fread(raw, 1, (size_t)host_size, f);
+	fclose(f);
+	if (got != (size_t)host_size) { free(raw); return false; }
+
+	bool text = host_size > 0;
+	unsigned lf = 0;
+	for (long i = 0 ; i < host_size ; i++) {
+		if (raw[i] == 0 || raw[i] == '\r') { text = false; break; }
+		if (raw[i] == '\n') lf++;
+	}
+	if (!text || lf == 0) { *out = raw; *out_len = got; return true; }
+
+	uint8_t *conv = malloc(got + lf);
+	if (!conv) { *out = raw; *out_len = got; return true; }
+	size_t o = 0;
+	for (size_t i = 0 ; i < got ; i++) {
+		if (raw[i] == '\n') conv[o++] = '\r';
+		conv[o++] = raw[i];
+	}
+	free(raw);
+	*out = conv; *out_len = o; *is_text = true;
+	return true;
+}
+
 static bool overlay_file(struct c5_area *a, const char *host_path, const char *fn,
                          const struct stat *st)
 {
@@ -535,7 +575,13 @@ static bool overlay_file(struct c5_area *a, const char *host_path, const char *f
 	r40_pack(name, MAX_NAME, nw);
 	r40_pack(ext, MAX_EXT, &ew);
 
-	unsigned nsec = (unsigned)((st->st_size + SSIZE - 1) / SSIZE);
+	uint8_t *content = NULL;
+	size_t clen = 0;
+	bool is_text = false;
+	if (!load_host_file(host_path, (long)st->st_size, &content, &clen, &is_text))
+		return false;
+
+	unsigned nsec = (unsigned)((clen + SSIZE - 1) / SSIZE);
 	if (nsec == 0) nsec = 1;
 
 	struct tracked *old = track_find(fs, name, ext);
@@ -545,21 +591,15 @@ static bool overlay_file(struct c5_area *a, const char *host_path, const char *f
 	long start = map_find_run(a, nsec);
 	if (start < 0) {
 		LOGWARN("crook5fs: no room for \"%s\" (%u sectors)", fn, nsec);
+		free(content);
 		if (old) track_del(fs, old);
 		return false;
 	}
 
-	FILE *f = fopen(host_path, "rb");
-	if (!f) { if (old) track_del(fs, old); return false; }
 	uint8_t *dst = area_sec(a, (unsigned)start);
 	memset(dst, 0, (size_t)nsec * SSIZE);
-	size_t got = fread(dst, 1, (size_t)st->st_size, f);
-	fclose(f);
-	if (got != (size_t)st->st_size) {
-		LOGWARN("crook5fs: short read on \"%s\"", fn);
-		if (old) track_del(fs, old);
-		return false;
-	}
+	memcpy(dst, content, clen);
+	free(content);
 	for (unsigned i = 0 ; i < nsec ; i++) map_set(a, (unsigned)start + i);
 
 	uint16_t p2 = 0, w6 = C5_ACCESS_DEFAULT;
@@ -573,13 +613,16 @@ static bool overlay_file(struct c5_area *a, const char *host_path, const char *f
 	ent[0] = nw[0]; ent[1] = nw[1];
 	ent[2] = DICDIC_LIBRAR_CODE;
 	ent[3] = ew;
-	// param1 and the "reserved" word 8: CROOK's own CRF/PER leave both 0 for
-	// a plain file. The earlier values here (a negative "unused trailing
-	// bytes" count in param1, a running id in word 8) made CROOK's
-	// open-by-name reject the entry - LIF's full scan still listed it, but
-	// LIST/ASG returned "UNKNOWN FILE".
-	ent[4] = 0;
-	ent[5] = p2;
+	// param1 / param2 pin the byte-exact end of file for CROOK's character
+	// I/O layer (opcr57: "parametr 1 - względny adres byte'owy ostatniego
+	// znaku zbioru względem końca sektora, parametr 2 - numer ostatniego
+	// sektora względem początku zbioru"). Every real CROOK data file carries
+	// them; without them LIST reads a whole trailing sector of padding as
+	// extra lines. param1 is stored as a negative "bytes short of a full
+	// last sector" count (matches CFA/PER output on the p8f reference disk).
+	ent[4] = (uint16_t)(int16_t)((long)clen - (long)nsec * SSIZE);
+	ent[5] = (uint16_t)(nsec - 1);
+	(void) p2;
 	ent[6] = w6;
 	ent[7] = DICDIC_LIBRAR_CODE;
 	ent[8] = 0;
@@ -604,6 +647,7 @@ static bool overlay_file(struct c5_area *a, const char *host_path, const char *f
 	t->start = (unsigned)start; t->nsec = nsec;
 	t->host_size = st->st_size;
 	t->host_mtime = (long)st->st_mtime;
+	t->text_crlf = is_text;
 	t->crc = image_data_crc(a, (unsigned)start, nsec);
 	meta_capture(fs, fn, ent);
 	LOG(fs->logc, "crook5fs: host->guest  %s.%s  %u sect @ %ld", name, ext, nsec, start);
@@ -685,12 +729,26 @@ static void write_host_file(c5fs_t *fs, struct c5_area *a, struct tracked *t,
 
 	unsigned start = ent[9], nsec = ent[11];
 	long len = (long)nsec * SSIZE;
+	// param1 is a negative "bytes short of the full last sector" count that
+	// marks EOF for character I/O (see overlay_file / the p8f reference disk).
 	int16_t p1 = (int16_t) ent[4];
 	if (p1 < 0 && -p1 < len) len += p1;
 
+	const uint8_t *src = area_sec(a, start);
+
 	FILE *f = fopen(path, "wb");
 	if (!f) { LOGWARN("crook5fs: cannot write back \"%s\"", path); return; }
-	fwrite(area_sec(a, start), 1, (size_t)len, f);
+	if (t->text_crlf) {
+		// undo the LF->CRLF done on the way in: drop trailing zero padding,
+		// then drop every CR that sits right before an LF.
+		while (len > 0 && src[len - 1] == 0) len--;
+		for (long i = 0 ; i < len ; i++) {
+			if (src[i] == '\r' && i + 1 < len && src[i + 1] == '\n') continue;
+			fputc(src[i], f);
+		}
+	} else {
+		fwrite(src, 1, (size_t)len, f);
+	}
 	fclose(f);
 
 	meta_capture(fs, base, ent);
